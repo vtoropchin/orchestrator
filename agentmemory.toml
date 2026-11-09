@@ -16,13 +16,13 @@ base_url = "http://localhost:11434"
 model    = "bge-m3:latest"
 
 [reasoner]
-# Локальный CLIProxyAPI (OpenAI-совместимый прокси к Gemini/Claude/Codex по
-# подписке). Ключ — один из api-keys его конфига — берётся из env CLIPROXY_API_KEY
-# (или .env рядом с этим конфигом), в TOML не пишется (DESIGN.md §13). Пустой
-# ключ или неподнятый прокси — деградация до noop (§15), память работает.
-provider = "cliproxy"
-base_url = "http://127.0.0.1:8317/v1"
-model    = "gpt-6.1-sol"
+# DeepSeek chat: ключ берётся из env DEEPSEEK_API_KEY. Если в shell-env его нет,
+# memo сам подхватывает его из .env рядом с этим конфигом при старте (см.
+# loadDotEnv в main.go) — .env раскладывается этим же "memo init". Пустой
+# ключ — деградация до noop (§15): recall без суммаризации, консолидация
+# недоступна, но память работает.
+provider = "deepseek"
+model    = "deepseek-flash"
 
 [recall]
 default_token_budget = 800
