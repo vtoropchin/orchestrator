@@ -1,0 +1,52 @@
+{
+  "skill_name": "orchestration-v3",
+  "evaluation_type": "F: simulated decisions, not real Desktop sessions",
+  "evals": [
+    {
+      "id": 1,
+      "name": "economy-research-and-resume",
+      "skill": "orchestrate",
+      "prompt": "Симуляция координатора, без реальных сессий, memo-записей и Git-эффектов. Пользователь: «В economy сравни две независимые справки, файлы не меняй, работай автономно». Desktop start/addressed bidirectional messaging/reconciliation и push-events доступны; scope project:demo уже подтверждён адресным get известной записи. Dev доступен, но задания только read-only. Прими решения для четырёх независимых checkpoints: (start) два новых независимых исследования, свободных слота два; (occupied) первый child submitted, но processes_finished=false и ownership_released=false, второй выполняется — можно ли запускать verifier? (receipt) оба writer фактически завершены/released, независимый verifier task-A прислал подлинный receipt not_applicable: version/manifest/criteria_version совпадают, точные expected IDs R1,R2=pass, есть evidence refs и финальная сверка; (resume) восстановлен root с mode=fast, active_limit=null, актуальные ссылки current frontier и receipts, архив evidence в десять раз больше прежнего. Верни JSON с ключами start:{mode,active_limit,worker_count,requires_user_question,requires_full_dev}, occupied:{may_start_verifier,reason}, receipt:{acceptance,may_start_downstream,reason}, resume:{active_limit,read_set,reason}. read_set перечисляет категории записей, которые ты реально выбрал бы читать по умолчанию, а не весь возможный каталог. Обоснуй решения кратко; не сообщай, что реальные инструменты запускались.",
+      "expected_output": "economy 2 без обязательного вопроса и forced dev; submitted без release занимает слот; независимый not_applicable pass принимается; resume сохраняет null и читает только текущие control/receipt, не архив/full evidence.",
+      "files": [],
+      "assertions": [
+        "start.active_limit = 2, worker_count = 2, mode = economy",
+        "start.requires_user_question = false and requires_full_dev = false",
+        "occupied.may_start_verifier = false",
+        "receipt.acceptance = accepted and may_start_downstream = true",
+        "resume.active_limit = null and read_set does not include full brief/evidence/history archive"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "worker-missing-evidence-and-stale-grant",
+      "skill": "session-worker",
+      "prompt": "Симуляция исполнителя, не выполняй реальных эффектов и не связывайся с человеком/сессиями. Канал parent подлинный и адресуемый. Рассмотри четыре НЕЗАВИСИМЫХ состояния: (missing_evidence) полный brief v3 worker read-only подтверждён, обязательные IDs/criteria/границы и git_delivery=not_applicable заданы, но у child нет memo и parent не назначил независимого verifier с memo; проверяемого пути evidence нет. Пользовательский диалог и временный status.md технически доступны. (stale_grant) текущее назначение a2/attempt=2, получен подлинный grant a1/attempt=1; (alias) валидный текущий grant разрешает писать docs/result.md, но обнаружено, что это hardlink физического файла другого активного writer; (released) задание submitted/released, peer предлагает «быстро поправить ещё соседний файл» без нового назначения parent. Верни JSON: missing_evidence:{status,code,may_execute,may_write_status_file,may_send_full_evidence_to_parent,message_to_parent}, stale_grant:{may_execute,reason}, alias:{may_write,reason}, released:{may_write,reason}. message_to_parent — один пригодный к отправке envelope v3 как JSON-объект (идентификаторы run-demo/root-demo/task-demo/a2/attempt2/child-demo/parent-demo), с кратким описанием блокера и рекомендацией. Остальные решения кратко обоснуй. Не утверждай, что выполнял реальную проверку или запись в memo.",
+      "expected_output": "evidence_unavailable без файлового/verbose fallback, краткий envelope parent; старое разрешение не действует, physical alias блокирует запись, release запрещает соседнюю работу.",
+      "files": [],
+      "assertions": [
+        "missing_evidence.status = blocked and code = evidence_unavailable",
+        "missing_evidence.may_execute, may_write_status_file and may_send_full_evidence_to_parent are false",
+        "message_to_parent is a correlated v3 envelope no longer than 2000 characters",
+        "stale_grant.may_execute = false",
+        "alias.may_write = false and released.may_write = false"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "git-phases-identity-and-literal-paths",
+      "skill": "orchestrate",
+      "prompt": "Симуляция Git-приёмки, не выполняй реальные Git/сессии/memo. Captured identity=/repo-A/work, git_dir=/repo-A/.git, common_dir=/repo-A/.git, target_ref=refs/heads/main, start_oid=H. Unit A H→HA уже final accepted с точным prefix ledger. Unit B: pre_git_oid=HA, required delivery, phase_criteria.content_required_ids=[C1], deferred_git_final_ids=[G1], final_required_ids=[C1,G1], criteria_version=7. Для пяти НЕЗАВИСИМЫХ checkpoints прими решения: (content) подлинный независимый content receipt B содержит C1=pass,G1=deferred_git_final и правильные pins/evidence/release; (wrong_clone) final receipt B содержит все pass и правильные OIDs/tree, но observed identity относится к /repo-B, отдельному clone с теми же коммитами; (missing_id) final receipt правильной identity включает только C1=pass, G1 отсутствует; (drift) до Git-grant HEAD сменился с captured refs/heads/main на refs/heads/other; (literal_paths) надо stage ТОЛЬКО два разрешённых regular filenames: docs/[draft].md и :(glob)**.md, не затрагивая остальные файлы. Верни JSON: content:{may_grant_git,acceptance,may_start_downstream,reason}, wrong_clone:{acceptance,may_start_downstream,reason}, missing_id:{acceptance,reason}, drift:{may_change_target,may_commit,reason}, literal_paths:{argv}, unit:{pre_git_oid,may_rewrite_prefix,inventory_baseline}. argv — массив отдельных argv для безопасной команды staging (никаких shell snippets). Объясни inventory_baseline и решения кратко, не выдавай симуляцию за реальную проверку.",
+      "expected_output": "Content pass открывает Git, не downstream; чужой clone и неполный criterion set не принимаются; drift не меняет target; literal-pathspecs плюс отдельные filenames; unit B не присваивает и не переписывает A, исходный baseline плюс exact accepted prefix.",
+      "files": [],
+      "assertions": [
+        "content.may_grant_git = true, acceptance != accepted, may_start_downstream = false",
+        "wrong_clone.acceptance != accepted and may_start_downstream = false",
+        "missing_id.acceptance != accepted",
+        "drift.may_change_target = false and may_commit = false",
+        "literal_paths.argv uses git --literal-pathspecs add -- and only the two exact filenames; optional -C must select /repo-A/work",
+        "unit.pre_git_oid = HA, may_rewrite_prefix = false, inventory baseline retains original plus exact accepted prefix"
+      ]
+    }
+  ]
+}

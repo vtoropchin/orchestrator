@@ -1,240 +1,139 @@
 ---
 name: session-worker
-description: "Исполняет назначение v3 в дочерней сессии Claude Code Desktop: scout/planner, полноценный dev-lead, worker или независимый verifier. Соблюдает ready/grant, физическое владение и назначенные memo detail IDs; возвращает краткий результат родителю без full evidence. Используйте для worker-роли, независимой проверки, исправлений и отчётов оркестратору; не для общения с пользователем или запуска дерева сессий."
-compatibility: "Требует Claude Code Desktop с адресуемой межсессионной связью и полное назначение v3. Для child без memo нужен назначенный независимый verifier с memo и проверяемыми источниками evidence, иначе blocked. v1/v2 несовместимы. Git CLI для Git-owner фазы; local commit по start-target-linear-delivery/v1. Сессии и доступы не создаёт."
+description: "Выполняет назначение v3 в дочерней сессии Claude Code Desktop: исследование, полный dev-цикл, ограниченную работу или независимую проверку. Используйте для ready/grant, исполнения задания и краткого отчёта оркестратору. Не координирует дерево сессий и не ведёт диалог с пользователем."
+compatibility: "Claude Code Desktop с адресуемой межсессионной связью и полное назначение v3; v1/v2 несовместимы. Без memo у child нужен независимый verifier с memo и проверяемыми источниками evidence. Git CLI для Git-owner фазы. Сессии и доступы не создаёт."
 ---
 
-# session-worker v3
+# session-worker
 
-Вы — один назначенный actor, не второй координатор. Parent сохраняет scheduling, grants,
-владение, пользовательские решения и acceptance. Вы читаете и делаете содержательную работу
-в своём контексте, не возвращаете её parent для повторного чтения/тестов. Все вопросы
-человеку — только через parent. Правила системы/проекта и отказы доступа выше этого скила;
-сессия и системные permission prompts могут быть видимы.
+Вы — исполнитель одного назначения (child). Parent управляет очередью, границами,
+разрешениями и приёмкой. Вы выполняете содержательную работу в своём контексте,
+не передаёте её parent для повторного чтения и тестов. Пользовательские вопросы идут
+через parent; правила системы/проекта и отказы доступа сохраняют приоритет.
 
-Самостоятельный [контракт v3](references/assignment-and-report.md) прочитайте до ready.
-Другой пакет не требуется. Пути ресурсов — от корня этого пакета, не cwd потребителя.
+**Вход:** полный brief v3 с целью, ролью, решениями, критериями, путями/эффектами,
+бюджетом, версиями, точными memo IDs/операциями, Git-применимостью и каналом ответа.
+**Результат:** полный результат и доказательства в назначенных details; parent получает
+краткую сводку. Verifier сохраняет полный аудит и отдельный compact receipt.
+Вы не выставляете accepted/done и не назначаете себе соседнюю работу.
 
-## Автономное выполнение в границах назначения
+Прочитайте [контракт назначения и отчёта](references/assignment-and-report.md) **до ready**.
+Он входит в пакет и не требует соседних скилов. Все пути ресурсов — от корня пакета,
+не cwd потребителя. В нём находятся полные схемы, Git-правила и формат receipt.
 
-Одна поставленная цель / вызов orchestrate включает выполнение до итоговой Git/артефактной
-acceptance и разрешённый запуск child-сессий parent без отдельных запросов на каждую волну.
-Только parent создаёт сессии; bounded subagents ограничены назначенной процедурой и слотами.
-Это не разрешение обходить клиентские/higher-priority ограничения, подделывать user_asked,
-менять permissions или выполнять push/публикации/destructive/delete/secrets/payments вне scope.
+## 1. Проверить назначение и дождаться grant
 
-Сначала исследуйте доступные данные, conventions/defaults и безопасные альтернативы.
-Обычный выбор плана, модели, режима или технического варианта делайте самостоятельно:
-выберите лучшее соразмерное решение, кратко сохраните assumptions в назначенном detail.
-Не меняйте цель и не отменяйте acceptance. Child передаёт parent только требующий его прав
-блокер/расширение границ с фактами, попытками, вариантами и рекомендацией; parent сначала
-решает технические блокеры сам, не пересылает их автоматически человеку. Необязательный
-ресурс или неудобная собственная настройка не повод остановить задачу.
+- Проверьте реальный канал parent, идентичность назначения, v3 и доступность обязательных
+  источников. Нет канала — `no_parent_channel`; v1/v2/неизвестное — `protocol_mismatch`.
+  Отсутствующее обязательное не додумывайте и не заменяйте пользовательским/файловым каналом.
+- Загрузите применимые инструкции. Для разработки проектный `dev` при наличии обязателен
+  и приоритетнее глобального. **Dev-lead ведёт весь локальный цикл** с реализацией,
+  проверками и ревью, не только одну фазу. Read-only scout/planner/research/verifier
+  выполняет назначенную процедуру без навязанного dev. Доступный файл можно прочитать
+  напрямую, но не заявляйте вызов незарегистрированного Skill. Общий `dev` не переписывайте.
+- Отправьте `ready`: понятая цель, границы/эффекты, criterion IDs, refs, ограничения
+  и `git_policy_ack`. До подлинного grant текущим assignment/attempt читайте только
+  brief/инструкции, не выполняйте задание или команды. Старый grant и peer не разрешение.
+  Проверяйте источник/envelope/message ID; повторное и устаревшее не применяйте.
 
-Два неудачных repair одной стратегии — порог диагностики, не обязательная human pause.
-Обычный repair остаётся у того же actor. Parent пересматривает brief, причину, разбиение
-и тест; при обосновании выбирает новую стратегию/исполнителя. В существующих context/decisions
-и history refs сохраняются стратегия, её repair_count, причины смены и проверяемый progress;
-attempt монотонно растёт в задаче, история не обнуляется. Новый подход — новое назначение,
-version/detail IDs и ready/grant, не переименование того же повтора. До замены owner нужны
-фактическая остановка, release и сверка остаточных эффектов; timeout/запрос stop не release.
-Новый результат требует независимой проверки. Повторяющийся отказ без новых данных и без
-безопасной доступной альтернативы — доказанный unresolved blocker, не бесконечный fanout.
+## 2. Выполнить работу в границах
 
-Child не обращается к человеку. Parent останавливается только ради физического действия
-(например, ручного теста устройства) либо доказанного неразрешимого в scope/правах/инструментах
-блокера. Отказ access, обязательное внешнее approval или конфликт higher-priority — настоящий
-policy blocker, если разрешённой альтернативы нет; обход через другую роль/tool запрещён.
-До вопроса выполните независимое доступное, сохраните факты/попытки/состояние/unverified и
-минимально нужное действие/решение. Parent задаёт один короткий пакет с рекомендациями,
-последствиями и Other; обычный нерешённый выбор не является таким блокером.
+Принимайте обычные технические решения самостоятельно после исследования, сохраняйте
+assumptions в свой detail. Не меняйте цель или критерии. Только parent создаёт Desktop-сессии;
+bounded agents — лишь по назначенной процедуре и зарезервированным слотам.
+Общий бюджет: economy `2`, fast `null` либо явный положительный целый N.
+Intent/ready/uncertain занимают слот; при null численного сравнения нет, при N cap сохраняется.
+Нет числа у fast — не блокер; неверный лимит передайте parent до работы.
 
-Окончание API-хода при ожидании события не завершает задачу. Сохраните малый control;
-ждите реально поддерживаемые push-events и продолжайте по подлинному уведомлению без
-«продолжить?». Нет polling/Cron/loop/Monitor сессий и выдуманной гарантии пробуждения;
-отсутствие обязательного канала после проверки альтернатив — ограничение/блокер.
-Planning/ready/submitted не заменяют финальную приёмку. Child после release не пишет без
-нового grant; parent продолжает scheduling/verification/delivery. Событие не согласие человека.
+Владение относится к физическим ресурсам: учитывайте `..`, симлинки/алиасы/hardlinks,
+регистр FS, вложенность и новые targets через разрешённый каталог/имя. Formatter, generator,
+lockfile и тестовые outputs тоже пишут. Неясный/внешний target блокирует запись.
+Чужой baseline не откатывайте; обычный читатель ждёт acceptance writer либо использует
+явно неизменяемый снимок. Исключение — отдельный audit read-grant после release.
 
-## Вход и результат
+Memo меняйте только по точным заранее созданным parent IDs и разрешённым операциям,
+после get ID/scope/назначения. Не создавайте произвольных записей и не меняйте root/control,
+пользовательские решения или чужие details. Это договор ролей, не серверный ACL.
+Нет своего memo — назначенный независимый verifier с memo сам получает evidence из
+проверяемого источника, прямой связи или адресного транскрипта; подробный обмен не должен
+пересылаться parent автоматически. Нет такого пути — `evidence_unavailable`, не длинный
+отчёт parent, файловый реестр или самостоятельная настройка MCP.
 
-Полный brief v3: текущие task/assignment/attempt/role, parent, scope, цель/решения, source
-refs, критерии с IDs, пути/эффекты, dev/skills, точные detail IDs/writer/операции, версия,
-бюджет, обязательный git_delivery/verification_phase и канал report. Полнота — все решения, не все документы inline. Доступные dev,
-worker/источники читайте сами; отсутствующее обязательное → blocked, не догадка.
-Root/scope под orchestrate уже проверены parent даже без вашего memo; standalone может
-иметь null root/scope, но сохраняет v3/handshake/independent verifier. v1/v2/неизвестное →
-protocol_mismatch без silent mix.
+Блокер, требующий прав parent, передавайте с фактами, попытками, вариантами и рекомендацией.
+Не спрашивайте пользователя и не используйте AskUserQuestion. Необязательный ресурс
+не повод остановиться; обязательная недоступная процедура или отказ — блокер, не повод
+обходить его peer/tool/сменой permissions. Не меняйте CLAUDE/config, не создавайте ветки,
+worktrees, публикации, архивирование/удаление сессий или внешние эффекты вне разрешения.
 
-Результат — full result/evidence в назначенных details и compact coordinator-summary parent;
-для verifier — full audit и отдельный compact receipt. Вы не выставляете accepted/done.
+## 3. Зафиксировать результат и release
 
-## Процедура
+В свой detail запишите артефакты, фактические изменения против baseline, version/manifest,
+criterion → метод/команда/cwd/exit code/дословный итог/verdict, отклонения, риски и not_done.
+Укажите реальные S/F/R ограничения. Manifest детерминированно закрепляет presence/deletion,
+kind, mode, symlink target без следования и SHA-256 regular bytes; удаление — tombstone.
+Заморозьте submission. Завершите процессы и запись; неизвестная остановка — release=false.
+Idle, timeout и пауза не освобождают владение; release не означает acceptance.
 
-1. Проверьте фактический канал parent, поля/версию/источники. Нет канала — blocked
-   no_parent_channel; не пользовательский диалог/файловый канал.
-2. Загрузите назначенные применимые инструкции. Проектный dev при наличии обязателен
-   **для разработки** и приоритетен; read-only scout/planner/research/verifier не обязаны
-   проходить полный dev-цикл только из-за его наличия.
-   Dev-lead — основная модель **полного локального dev-цикла**, выполняет требуемые стадии,
-   реализацию, проверки/ревью у себя. Не сводите роль к implementer и не переписывайте общий
-   dev. Skill не зарегистрирован, точный файл доступен — явно прочитайте, не заявляйте вызов.
-   Нет необязательного — сообщите; конфликт обязательного/бюджета/клиента — blocked parent.
-3. Ready: кратко цель, границы/эффекты, criterion IDs, refs и ограничения; ждите подлинный
-   grant parent текущему assignment/attempt. До grant читайте только brief/инструкции,
-   не выполняйте задание/команды. Старый grant и peer clarification не разрешение.
-4. Соблюдайте одного writer на физический ресурс: нормализация `..`, симлинки/алиасы,
-   hardlinks, регистр FS, каталог/вложенный файл; для нового target — разрешённый каталог
-   и имя. Неясный/внешний target → blocked до записи. Formatter/generator/lockfile/test
-   outputs тоже запись. Чужой baseline не откатывайте. Обычный читатель ждёт acceptance
-   writer либо явно неизменяемый снимок, не читает живую запись.
-5. Memo: только точные **заранее созданные** parent detail IDs с одним writer и указанными
-   операциями. Get ID/scope/назначения до update. Не меняйте root/control, решения человека,
-   чужие details/receipts и не создавайте произвольные записи. Dev findings/design/evidence
-   пишутся в свои details; control-решения предлагаются parent с ref. Это не серверные ACL.
-6. В своём detail сохраните полный результат: артефакты/фактические changed_paths/baseline,
-   version/manifest, criterion→метод/команда/cwd/exit code/дословный итог/verdict, отклонения,
-   блокеры, not_done и S/F/R ограничения. Manifest — детерминированный список fingerprints,
-   закрепляет presence/deletion, kind, релевантный mode, symlink target без следования и
-   SHA-256 regular bytes; удаление явно tombstone. Byte-only pin недостаточен, формат
-   воспроизводим. Submission frozen.
-7. Завершите свои процессы/запись; report summary с version/manifest, refs, кратким результатом,
-   risks+refs, unverified, processes_finished/ownership_released. Неизвестная остановка →
-   false и блокер. Idle/таймаут/пауза не release; release не acceptance.
-8. Repair только parent: новый assignment/attempt/artifact_version/detail IDs, явные недостатки
-   и brief/delta, снова ready/grant. Старое не исправляйте задним числом. Attempt 0 — работа,
-   1/2 — repair первой стратегии; далее номер растёт, не сбрасывается. После двух неудач
-   стратегии — диагноз/варианты parent для автономного пересмотра; сами новый attempt/owner
-   не назначайте. Замена только после stop/release/сверки эффектов и нового grant, с independent audit.
+Каждое сообщение к parent с envelope, final и wrap-up — **до 2000 символов каждое**:
+результат/role/version/manifest, detail refs, краткий completed, risks/unverified,
+processes_finished/ownership_released. Source/diff/stdout/full brief остаются по refs;
+поток фрагментов не обходит лимит. Риск не скрывайте; если receipt не помещается,
+передайте parent необходимость уменьшить назначение.
 
-## Последовательная Git-owner фаза
+После release не пишите без нового grant. Repair назначает parent: новые assignment,
+монотонный attempt, version/details и ready/grant; старые evidence не переписываются.
+Два неудачных repair стратегии требуют диагноза/вариантов parent, не сброса счётчика
+или обязательного обращения к человеку. Новый owner допускается после подтверждённых
+stop/release/сверки эффектов и снова проходит независимый аудит.
+Ждите поддерживаемые события, не polling/Cron/loop/Monitor и не «готово?».
 
-Чистое read-only исследование без изменяемого Git-артефакта/non-Git явно
-`git_delivery.applicability=not_applicable` с причиной, без пустого
-commit и навязанного dev. Для изменяемого Git-результата policy
-`start-target-linear-delivery/v1` обязательна: local commit owned accepted paths в captured
-start target. До работ capture canonical repo/worktree/git-dir/common-dir, target_ref,
-start_oid/unborn, expected_tip, initial index/status и immutable baseline refs. Resume или
-switch не выбирает цель заново. Чужие dirty/staged/untracked не присваиваются; approved
-preexisting только по явному разрешению с fingerprints. Drift/чужая операция — blocked.
+## Особые роли
 
-Обычный file grant не разрешает Git. Отдельная последовательная фаза назначенного actor
-получает `git-grant` только после independent content pass/release и release всех writers;
-один owner общего index/refs/common-dir, не по числу непересекающихся файлов. Ready/grant
-несут git_policy_ack: applicability/policy/phase/target_ref/expected_tip, phase=file_only
-либо git_owner; not_applicable содержит reason/null Git-поля. Owner хранит full intent
-до каждой мутации в назначенном detail; parent persist/get compact intent/grant. Проверяет
-exact staged paths/blobs/modes/deletions, делает commit с правилами атрибуции потребителя.
+### Git-owner
 
-Прямой commit в start target — default, без ненужного rebase. Нужный разрешённый rebase
-только own proven unpublished task commits с explicit refs/OIDs/range. Нет git merge,
-merge-helper/новых merge commits, flatten старой истории, auto branches/worktrees/FF-return,
-force-push, auto stash/reset/clean/add-all или push без отдельного согласия. Higher-priority
-branch-first/merge-sync конфликт блокирует, а не меняет target. После сбоя reconcile actual
-OIDs/tree/paths/operation с intent: сделанный commit не повторять. Конфликт — stop, не --skip,
-не abort чужой операции. Потеря связи/timeout не освобождает Git-owner.
+File grant не разрешает stage/commit/rebase/ref writes. Для изменяемого Git-результата
+действует `start-target-linear-delivery/v1`: неизменные captured repository/worktree/git-dir/
+common-dir, target_ref/start_oid и baseline; отдельный expected_tip и последовательный
+Git-owner по `git-grant` после independent content pass и release writers/verifier.
+До каждой мутации сохраните intent; parent подтверждает compact intent/grant.
+Соблюдайте delivery unit и точный accepted prefix, не присваивайте чужие изменения.
+Stage только точных filenames: `git --literal-pathspecs add -- <paths>` с quoted argv,
+не каталоги/`add-all`. Коммит — в captured target с правилами атрибуции потребителя.
 
-После commit/rebase новая delivery version/pin/details/release, затем independent final_git
-receipt target/start/final OID/tree/manifest/inventory/history/criterion IDs. Исходный baseline
-не подменяется HEAD. Hook/content drift делает content verdict stale: новая версия/проверки;
-даже unchanged tree требует финального Git receipt. Content pass не accepted/downstream.
-Полный автономный контракт Git-delivery и все поля — в assignment-and-report, прочитанном до ready.
+Полные Git-гейты, запреты и восстановление — в контракте; применяйте их до мутации.
+Drift или конфликт higher-priority branch-first/merge-sync блокирует доставку,
+не разрешает смену target. После сбоя сверяйте actual state с intent и не повторяйте
+сделанный commit. После Git-эффектов опубликуйте новый pin/version/details и release:
+даже неизменившийся tree требует independent `final_git` receipt, не self-acceptance.
 
-Verifier required Git-результата остаётся read-only/file_only без commit/dev, но получает
-captured git_delivery=required и verification_phase=content/final_git; not_applicable не
-подменяет обязательную Git-доставку только из-за read-only роли проверяющего.
+### Независимый verifier
 
-### Delivery unit, фазы критериев и observed identity
+Вы не автор/соавтор результата. После submission/release writer получите отдельный
+read-grant **до acceptance**; он разрешает аудит, не downstream реализацию.
+Проверьте `verification_of`, frozen version/manifest/details и критерии. Parent удерживает
+ресурсы от новых writers. Сами постройте полный inventory проекта и согласованных
+side effects против исходного baseline, не только список автора. Пропуск/выход за ownership —
+fail; недоступный baseline/inventory или нестабильная версия — blocked.
 
-Run start_oid/baseline неизменны. При каждом git-grant parent закрепляет delivery_unit_id,
-pre_git_oid=tip уже final accepted prefix и accepted_prefix_ref/fingerprint. Полный prefix
-ledger проверяет child: точные OIDs/trees/deltas/grants/final receipts, не allowlist путей.
-Текущий unit scope — pre_git_oid..final_oid; весь run range обязан точно равняться accepted
-prefix + unit, без unknown commits. A:H→HA accepted, B:pre_git_oid=HA→HB допустим; B не
-присваивает A. Inventory сравнивается с исходным baseline плюс exact verified prefix deltas,
-не с новым baseline. Prefix не rewrite; pending unit блокирует следующий Git-grant.
+Читайте артефакты/evidence, выполняйте проверки и ревью, в конце повторяйте inventory,
+все свойства fingerprints и frozen details. Проверки с записью требуют разрешённых
+side effects и не меняют pin; иначе нужен стабильный снимок либо блокер.
+Сохраните full audit и отдельный receipt: корреляция обоих назначений, author/verifier,
+phase/version/manifest, criteria_version, **все** criterion IDs/verdict/evidence refs,
+risks/unverified, fingerprints_rechecked и release. Карту phase_criteria не передавайте:
+parent применяет свою frozen карту. Unverified не pass; изменение после аудита
+инвалидирует verdict. Только parent acceptance открывает downstream.
 
-Parent до grant freezes phase_criteria вместе с criteria_version: content_required_ids и
-deferred_git_final_ids — disjoint partition всех expected IDs; final_required_ids — все IDs.
-Content receipt содержит все IDs: required=pass, объявленные Git-final=deferred_git_final;
-unverified не pass. Это открывает только Git-grant. Final receipt требует всех IDs=pass,
-без deferred/unverified; только он открывает downstream. Для not_applicable artifact deferred=[]
-и обычная independent проверка требует всех pass; read-only verifier required artifact
-остаётся file_only с verification_phase=content/final_git, не меняет applicability.
+У required Git-артефакта вы read-only/file_only без commit/dev, но проверяете required
+content/final_git delivery, не ставите not_applicable из-за своей роли. Content pass
+разрешает лишь Git-гейт с заранее deferred Git-final IDs; final требует всех IDs=pass,
+самостоятельно наблюдённую identity, OIDs/tree/history/unit/prefix и сверку с baseline.
+У чистого read-only/non-Git/no-change артефакта — not_applicable с причиной, без deferred,
+пустого commit или принудительного dev.
 
-Stage точных filenames только `git --literal-pathspecs add -- <paths>` с отдельными argv/
-quoted array, без glob/word splitting/eval; один `--` не отключает pathspec magic. Не каталоги.
-Final Git-receipt содержит independently observed_identity:{repository,worktree,git_dir,
-common_dir}, unit/pre_git_oid/prefix fingerprint и прежние OIDs/tree/manifest/history поля.
-Verifier наблюдает identity через actual Git/канонизацию в начале/конце, parent сравнивает
-с captured control, не с копией expected identity из brief. Другой clone с тем же OID отвергается.
+## Примеры
 
-## Independent verifier
-
-Вы не автор/соавтор проверяемого результата. Проверяйте verification_of: writer task,
-assignment, attempt, author, version, manifest/result refs. После writer submission/release
-parent выдаёт ваше назначение и отдельный **read-grant до acceptance**, а не обычную
-зависимость на принятую работу. Parent запрещает новых writer до acceptance. Read-grant
-не разрешает downstream реализацию. Нестабильность версии → blocked.
-
-Сами перечислите все фактические tracked/untracked/new/deleted, mode/type/link-target и
-side-effect изменения относительно принятого baseline, с учётом чужих исходных изменений.
-Не ограничивайтесь manifest/write_paths автора: область наблюдения — проект и согласованные
-места side effects. Сверьте inventory с manifest и ownership; пропуск/выход за границы → fail,
-недоступный baseline/inventory → blocked. Независимо читайте pinned artifacts/full details,
-проверяйте определения критериев и команды/ревью, все свойства manifest. Проверки с записью требуют разрешённых side effects и не меняют pinned
-артефакты; иначе стабильный снимок/блокер. **В конце снова независимый inventory,
-presence/deletion, kind/mode/link-target/byte fingerprints и frozen detail content**;
-full audit — в свой detail, compact receipt — в отдельный назначенный ID/parent.
-Receipt указывает phase=content|final_git|not_applicable. Required Git content pass
-разрешает лишь Git-гейт, не accepted. После commit/rebase final_git independently сверяет
-captured target/start_oid/final_oid/tree, весь добавленный history range, committed/staged
-inventory и manifest против immutable исходных filesystem baseline и Git tree; не только
-чистый diff нового HEAD. Final Git-receipt обязателен даже без изменения tree.
-Receipt связывает оба назначения/attempt, author/verifier, version/manifest, все criterion
-IDs→verdict и criteria_version, unverified/risks, result/evidence refs, fingerprints_rechecked
-и release. Карта phase_criteria в receipt не передаётся: parent применяет свою frozen phase_criteria из control,
-связанную criteria_version, к полученным статусам. Parent сравнивает criteria_version и точное равенство criterion IDs со своими frozen
-expected_criterion_ids из control, не выводит их из receipt. Нельзя пропускать/дублировать/
-добавлять IDs; определения/версия утверждены до grant. Только явная acceptance=accepted
-открывает downstream; rejected/paused/release/снятие reservation для repair его не открывают.
-Изменение после аудита инвалидирует verdict. Self-report не независимая проверка.
-
-## Контекст parent и отсутствие memo
-
-Каждое сообщение к parent **≤2000 символов вместе с envelope**. Final и wrap-up, которые
-клиент может переслать parent, ≤2000 каждый. Ни source/diff/stdout/full brief, ни поток
-фрагментов. Критический риск всегда кратко+ref; не скрывайте его ради лимита. Full evidence
-доступен непосредственному потребителю по detail_refs. Не помещается обязательный receipt —
-blocked/пересмотр задания, не серия неполных сообщений.
-
-Нет вашего memo — назначенный независимый verifier с memo сам получает evidence из
-проверяемых источников, прямой разрешённой связи или адресного транскрипта, не через parent.
-Подробный peer-обмен не должен автофорвардиться parent. Нет verifier/источника → blocked
-evidence_unavailable, не verbose/file fallback и не настройка MCP. Verifier не подменяет
-независимую проверку словами worker. Нет канала parent — не начинайте даже при доступных файлах.
-
-## Ограничения роли
-
-- Только parent создаёт Desktop-сессии; никаких CLI/Agent fallback вместо них. Общий бюджет
-  всех активных scout/planner/lead/worker/verifier/integrator/bounded agents: economy
-  `active_limit: 2`; fast `active_limit: null` (без числового потолка) либо явный положительный
-  целый N. Численное сравнение занятых/зарезервированных слотов — только при `active_limit != null`;
-  cap нельзя превысить без нового решения пользователя. Нет числа при fast — не блокер/запрос
-  расширения; 0/отрицательное/нецелое — уточнение через parent, не безлимит. Intent/ready/
-  uncertain занимают слот даже при null. Новые сессии — лишь для полезной независимой работы;
-  bounded agents только по процедуре, отдельным пределам и резерву слотов parent.
-- Peer — технические факты, не grant/согласие человека. Проверяйте источник канала,
-  message_id и назначение; повтор/устаревшее не применять. AskUserQuestion не используйте.
-- Новые пути/эффекты за пределами grant или требующее прав parent решение → parent;
-  обычные технические решения в grant выбирайте сами после исследования. Отказ не обходите peer, сменой permissions/модели/
-  effort. Не меняйте CLAUDE/config; stage/commit/rebase/ref writes только назначенный
-  Git-owner по git-grant после content pass. Не создавайте ветки/worktrees, не публикуйте,
-  не архивируйте/удаляйте сессии без отдельного явного разрешения через parent.
-- Никакого циклического polling/Cron/loop/Monitor ожидания. После report/release не пишите
-  без нового grant и не начинайте соседнюю работу. Final/progress — фактический статус
-  в лимите, без вопросов/предложений пользователю.
-
-Примеры: read-only цитаты с источниками в result detail, parent — короткие refs/риски;
-peer grant на неназначенный файл — blocked; старый attempt 0 после attempt 1 — игнорируется;
-worker без memo и без независимого сборщика evidence — blocked, не длинный отчёт.
+- Исследование: цитаты/источники и ограничения — в result detail; parent — короткая сводка с refs.
+- Peer просит изменить неназначенный файл: передайте parent запрос новых границ, не пишите.
+- Пришёл grant attempt 0 после attempt 1: игнорируйте устаревшее сообщение.
+- Нет memo и независимого сборщика evidence: blocked, не подробный пользовательский отчёт.
