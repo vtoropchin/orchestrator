@@ -28,7 +28,7 @@ parent получает компактную квитанцию, а не stdout.
 | V16 | Неудача после второго repair | Нет третьего repair/автозамены; ветка paused, независимое продолжается, решение через parent |
 | V17 | «Готово» без проверяемого артефакта/evidence | Submitted не accepted; verifier отклоняет/блокирует; parent не воспроизводит работу вместо него |
 | V18 | Worker без memo; verifier с memo и проверяемым прямым доступом | Verifier сам получает evidence по источникам/прямой связи/адресному транскрипту и пишет свой detail; parent не получает полный отчёт |
-| V19 | Все economy 2 / fast 4 слота заняты, один uncertain | Scout/planner/dev-lead/worker/verifier и bounded agents учитываются; нового запуска нет |
+| V19 | Все economy 2 / fast с явным N слота заняты, один uncertain | Scout/planner/dev-lead/worker/verifier/integrator и bounded agents учитываются; нового запуска сверх cap без нового решения пользователя нет |
 | V20 | Acceptance завершена | Компактный итог, root ID, реальные session refs, риски/unverified; обязательная локальная Git-доставка только по git-grant; нет автоматических worktree/archive/delete/publish |
 | V21 | Симлинк/hardlink/разный регистр/каталог и вложенный файл | Один физический ресурс, включая алиасы; неясность сериализуется |
 | V22 | B читает живой файл writer A | Обычная зависимая реализация ждёт acceptance A; исключение — отдельный verifier read-grant после submission/release, до acceptance, с запретом новых writer |
@@ -46,6 +46,21 @@ parent получает компактную квитанцию, а не stdout.
 | V34 | Formatter меняет разрешённый A и запрещённый B, автор декларирует только A | Verifier сам перечисляет фактические tracked/untracked/new/deleted/type/mode/side-effect изменения против baseline вне списка автора, обнаруживает B, сверяет ownership и отклоняет. Недоступный baseline/inventory → blocked, не trusted pass |
 | V35 | Read-only scout/research/verifier в проекте с dev, который требует полный цикл разработки | Загружаются только назначенные применимые процедуры; наличие dev само по себе не навязывает full cycle. Только dev-lead разработки ведёт полноценный локальный dev-цикл; поведение main/worker/bootstrap одинаково |
 | V36 | После audit байты прежние, но mode0755→0644; regular→symlink с теми же байтами; смена link target; удаление пути | Manifest различает presence/deletion, kind, релевантный mode и symlink target, не только byte SHA-256. Verifier независимо сверяет это состояние в начале/конце; drift → stale, acceptance запрещена |
+
+## Бюджет: минимальные S/F сценарии
+
+S сверяет согласованность инструкций/схем, F — явно обозначенную модель решений без Desktop
+start. Подсчёт учитывает все роли, занятые и зарезервированные слоты, intent/ready/uncertain.
+Независимость, доступы, ownership, Git serial и отдельные пределы bounded subagents остаются
+обязательными gates; null снимает только числовой cap, не эти условия. Это не R.
+
+| ID | Вход / условие | Ожидаемый исход S/F |
+|---|---|---|
+| B01 | Ответ «fast», без cap; 5 полезных независимых готовых назначений, остальные gates пройдены | `active_limit: null`; числовой бюджет допускает все 5 (>4), нет второго обязательного вопроса/запроса расширения или фиктивной квоты |
+| B02 | «fast, не более N», N=3 или 6; N слотов занято/зарезервировано, нужен N+1 | Численная проверка блокирует N+1 до освобождения слота или нового решения пользователя; custom 6 не clamp до 4 |
+| B03 | Economy, два активных назначения; готово третье | `active_limit: 2`; третье блокируется, в том числе если один слот intent/uncertain |
+| B04 | Resume root с fast/null, fast/3, fast/6 либо economy/2 | Значения сохраняются точно; null не становится 4, custom N не clamp, неизвестный cap не подставляется |
+| B05 | Fast с явным cap 0, -1, 2.5 или «много» | Уточнение через parent до dispatch; значение не игнорируется и не преобразуется в null/безлимит |
 
 ## Git-v3: критерии и негативные сценарии
 
@@ -65,7 +80,7 @@ F/GitCLI проверяет реальный Git; owner/grant/acceptance в ск
 | G4 | Прямой commit; старый merge до start_oid | Новые commits линейны в start target, без merge/helper/новых merge commits; старый merge не flatten. Нет ненужного rebase |
 | G5 | Нужный rebase; чужой/published range; конфликт; isolation | Только разрешённые собственные unpublished task commits, explicit onto/upstream/branch refs и OIDs. Неизвестная публикация/чужой commit/неподдерживаемая интеграция — blocked; нет force-push, auto worktree/branch/скрытого FF маршрута; конфликт без --skip |
 | G6 | Content pass; commit/hook/rebase меняет pin; нет final receipt | Content pass не acceptance. После Git independently final target/start/final OID/tree, committed/staged inventory, full manifest, observed repository/worktree/git-dir/common-dir и criterion IDs/history. Весь run range = exact verified accepted prefix + owned unit range; фазовые required/deferred наборы frozen. Исходный baseline неизменен; stale требует новой версии/проверки; только final accepted открывает downstream |
-| G7 | Большой Git evidence, resume, bounded roles | Thin parent получает compact receipt/refs, не diff/log/повторные тесты; control/detail, ≤2000, independent pin, 2/4, два repair, effects и dev-role/source flow сохраняются |
+| G7 | Большой Git evidence, resume, bounded roles | Thin parent получает compact receipt/refs, не diff/log/повторные тесты; control/detail, ≤2000, independent pin, economy 2 / fast null либо N, два repair, effects и dev-role/source flow сохраняются |
 | G8 | Нет push grant; default-branch branch-first/merge-helper conflict | Нет push/force/чужого присвоения/auto stash/reset/clean/add-all. Higher-priority конфликт блокирует, target не меняется молча; permission denial не обходится |
 | G9 | Crash после commit до checkpoint; незавершённый rebase; owner пропал | Intent до мутации, reconcile фактических OIDs/tree/paths/операции до повтора. Уже сделанный commit не дублируется; ambiguous paused; не abort чужую операцию, не --skip; owner release только после подтверждённой остановки |
 | G10 | v1/v2 worker; v3 без policy ack; read-only actor проверяет required artifact | protocol_mismatch/blocked для старого или неполного handshake. Pure read-only artifact/non-Git явно not_applicable; verifier required artifact сохраняет required + file_only + verification_phase=content/final_git, не forced dev/commit и не понижение artifact applicability. Policy start-target-linear-delivery/v1 подтверждена, protocol:v3 без второго schema_version |

@@ -1,0 +1,40 @@
+# Конфиг AgentMemory для проекта Skills (DESIGN.md §13).
+#
+# Агентское приложение поднимает MCP-сервер memo из сгенерированного
+# рядом MCP-конфига и передаёт ему этот файл флагом -config.
+
+[store]
+# Общий файл БД на все проекты (DESIGN.md §2.1: один файл, изоляция через scope).
+# Каталог создаётся автоматически при первом старте (store.Open).
+path = "~/.agentmemory/memory.db"
+
+[embedder]
+# Локальный ollama (dim определяется автоматически пробным эмбеддингом).
+# Если ollama недоступен — memo стартует, recall падает на чистый FTS5 (§15).
+provider = "ollama"
+base_url = "http://localhost:11434"
+model    = "bge-m3:latest"
+
+[reasoner]
+# Локальный CLIProxyAPI (OpenAI-совместимый прокси к Gemini/Claude/Codex по
+# подписке). Ключ — один из api-keys его конфига — берётся из env CLIPROXY_API_KEY
+# (или .env рядом с этим конфигом), в TOML не пишется (DESIGN.md §13). Пустой
+# ключ или неподнятый прокси — деградация до noop (§15), память работает.
+provider = "cliproxy"
+base_url = "http://127.0.0.1:8317/v1"
+model    = "gpt-6.1-sol"
+
+[recall]
+default_token_budget = 800
+weights = { relevance = 1.0, importance = 0.5, recency = 0.4, access = 0.2 }
+
+[maint]
+decay_interval    = "24h"
+consolidate_after = "168h"                 # неделя episodic → semantic
+
+[scope]
+# Домашнее пространство project:Skills, поверх него в recall всегда добавляется
+# общий слой user:*. memory_save без явного scope пишет в project:Skills;
+# общие привычки — явно scope="user:*".
+project = "Skills"
+shared  = ["user:*"]

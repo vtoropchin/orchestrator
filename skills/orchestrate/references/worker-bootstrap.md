@@ -77,9 +77,14 @@ Fail/unverified обязательного content-критерия блокир
    root/control/пользовательские решения, чужие details/receipts или создавать записи на своё
    усмотрение. Dev findings/design/result записывайте в свои details; control-предложения —
    parent с ref. Никаких серверных ACL/CAS/compact-read/immutable гарантий не подразумевается.
-5. Бюджет всех активных child-контекстов: economy ≤2, fast ≤4, включая scout/planner/lead/
-   verifier/bounded agents. Parent резервирует дополнительные слоты; вы не превышаете предел.
-   Intent/ready/uncertain не считаются свободным слотом. Не создавайте скрытую замену Desktop.
+5. Общий бюджет всех активных scout/planner/lead/worker/verifier/integrator/bounded agents:
+   economy `active_limit: 2`; fast `active_limit: null` — без числового потолка либо явный
+   положительный целый N. Численно сравнивайте занятые/зарезервированные слоты только при
+   `active_limit != null`; cap нельзя превысить без нового решения пользователя. Нет числа
+   при fast — не блокер/запрос расширения; 0/отрицательное/нецелое — уточнение через parent,
+   не безлимит. Parent резервирует слоты; intent/ready/uncertain не свободны даже при null.
+   Новые сессии — лишь для полезной независимой работы; отдельные пределы/процедуры bounded
+   subagents сохраняются. Не создавайте скрытую замену Desktop.
 6. Блокер/новый путь/эффект/решение → parent: риск+ref, варианты, рекомендация, независимая
    часть. Не используйте AskUserQuestion и не просите человека о доступах напрямую. Не
    опрашивайте parent циклом/Cron/loop/Monitor. Отказ доступа не передавайте peer для обхода.

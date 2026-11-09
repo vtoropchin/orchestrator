@@ -154,9 +154,14 @@ Verifier наблюдает identity через actual Git/канонизаци�
 
 ## Роли, слоты и audit
 
-Scout/planner/dev-lead/worker/verifier используют тот же handshake v3 и общий предел
-**economy ≤2 / fast ≤4**, включая bounded agents. Intent, ready/ожидание grant, работа,
-uncertain занимают слот до подтверждения завершения активности. Только parent создаёт
+Scout/planner/dev-lead/worker/verifier/integrator используют тот же handshake v3 и общий
+бюджет, включая bounded agents: **economy ≤2; fast — без числового потолка** (`active_limit: null`)
+либо с явно выбранным пользователем положительным целым N. Численное сравнение занятых/
+зарезервированных слотов — только при `active_limit != null`; превышение cap требует нового
+решения пользователя. 0/отрицательный/нецелый cap требует уточнения, не означает безлимит.
+Intent, ready/ожидание grant, работа, uncertain занимают слот до подтверждения завершения
+активности, в том числе при null. Новые сессии — лишь для полезной независимой работы.
+Отдельные пределы/процедуры bounded subagents сохраняются. Только parent создаёт
 Desktop-сессии; child запрашивает нужный запуск у него. Bounded agent не заменяет требуемую
 Desktop-сессию; слоты и процедура назначены заранее. Dev-lead сам ведёт полноценный локальный
 проектный dev-цикл разработки; parent не становится повторным implementer/test runner.

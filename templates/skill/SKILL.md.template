@@ -1,0 +1,45 @@
+---
+name: my-skill
+description: "Replace this description with the concrete task and the user requests that should activate this skill."
+---
+
+# My Skill
+
+<!-- Authoring template, not a published skill. Copy to skills/my-skill/SKILL.md,
+     rename the directory and name together, and replace all authoring notes. -->
+
+## When to use
+
+Describe the task this skill handles and when another approach is more appropriate.
+
+## Inputs and result
+
+Specify required inputs, defaults, and the observable result. Ask only for missing
+information that changes the procedure; inspect files and environment facts directly.
+
+## Procedure
+
+1. Check the required inputs and inspect the relevant files before changing them.
+2. Perform the domain-specific steps. Replace this line with concrete instructions.
+3. Verify the result against explicit acceptance criteria and report what was checked.
+
+## Examples
+
+Provide a realistic request, its inputs, and the expected output or artifact.
+Include an edge case or a failure case with the expected response.
+
+## Safety and compatibility
+
+- Declare any required runtime, command-line tools, network services, and credentials.
+  Add the optional compatibility field only when such requirements exist.
+- Do not embed secrets. Do not silently publish, delete, overwrite, or install globally.
+  Obtain authorization for actions with those effects.
+- Resolve bundled file paths relative to this skill directory, not the caller's
+  working directory. Reference resources only when those files are included.
+- Do not require the author's project configuration, memory server, or sibling skills.
+  If a client-specific feature is essential, state that limitation explicitly.
+
+## Verification
+
+List concrete checks for a normal request, an edge case, and missing prerequisites.
+A successful metadata validation or installation is not a behavioral evaluation.

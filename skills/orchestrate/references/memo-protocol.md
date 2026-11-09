@@ -82,7 +82,7 @@ project: <проверенный корень>
 scope: <project:...>
 parent_session_id: <фактический parent>
 mode: economy # fast
-active_limit: 2 # 4 для fast
+active_limit: 2 # economy: 2; fast: null (безлимит) либо явный положительный целый N
 phase: planning # running | paused | accepted
 revision: 0 # номер изменения, не lock
 current_frontier: [] # только актуальные control IDs и ближайшие зависимости
@@ -90,6 +90,15 @@ history_refs: [] # компактные ссылки на отдельный и�
 current_decision_refs: []
 blocker_refs: []
 ```
+
+`active_limit` обязателен: economy — 2; fast без cap в ответе пользователя — явный YAML null
+(безлимит), «fast, не более N» — положительное целое N. Начальный пакет объясняет оба ответа,
+второго обязательного вопроса о лимите нет. 0, отрицательное, нецелое значение — уточнение
+через parent до dispatch, не null/игнорирование; не используйте -1/бесконечность/скрытую квоту.
+Сравнивайте учёт занятых/зарезервированных слотов с числом только при `active_limit != null`.
+Отсутствие числа в ответе «fast» не блокер и не запрос расширения; явный cap нельзя превысить
+без нового решения пользователя. Учёт всех ролей, ownership и отдельные пределы bounded
+subagents действуют и при null; новые сессии — только для полезной независимой работы.
 
 По завершении ветки parent переносит её ссылку из current_frontier в отдельный history
 index. При росте history/current decisions используйте отдельные индексные записи, не
@@ -176,8 +185,8 @@ Verifier наблюдает identity через actual Git/канонизаци�
 
 1. Parent создаёт control в todo, назначенные detail placeholders и индексирует control в
    current_frontier. До успешной индексации и scope-проверки dispatch запрещён.
-2. Сверяет зависимости, слоты всех child-ролей/bounded agents, эффекты и физические
-   write/write, read/write конфликты: симлинки/hardlinks, `..`, регистр FS, каталог/файл,
+2. Сверяет зависимости, слоты всех child-ролей/bounded agents (численный cap только при
+   `active_limit != null`), эффекты и физические write/write, read/write конфликты: симлинки/hardlinks, `..`, регистр FS, каталог/файл,
    side effects; неясный алиас → последовательность. Scout может подготовить карту;
    parent сохраняет окончательные границы/владение, не читая весь source.
 3. Сохраняет assignment/attempt, новую версию, token, handle и intent **до** Desktop start.
@@ -227,6 +236,9 @@ push, force-push, чужой index или auto stash/reset/clean/add-all. Ком
 передача; revision/idle не доказывает владение/остановку. Затем читайте **только root и
 current_frontier control**, текущие compact receipt/решения по необходимости. Не весь history,
 brief/design/result/evidence. Детали загружает назначенный восстанавливающий child.
+Сохраните root `mode/active_limit` без clamp/подстановки: null остаётся безлимитом, явный N —
+тем же cap, economy — 2. Смена cap — только новым решением пользователя. Невалидное/отсутствующее
+поле в сохранённом root требует уточнения; это не ответ «fast» без числа и не default null.
 
 Для intent/uncertain адресно сопоставьте сессии/token. Точное единственное совпадение —
 bind после проверки; неоднозначность/недоступный реестр — paused. Отсутствие в одном списке
