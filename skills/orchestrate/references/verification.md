@@ -12,20 +12,20 @@ parent получает компактную квитанцию, а не stdout.
 |---|---|---|
 | V01 | Две независимые read-only задачи, economy, Desktop и memo доступны | Не более 2 активных child-контекстов всех ролей; intent → bound → ready → grant; result details → release → независимая проверка → решение parent по receipt |
 | V02 | Две задачи пишут один файл; formatter первой меняет файл второй | Двух grant нет; побочные записи включены во владение; второй writer ждёт |
-| V03 | У parent нет memo | Нет новых start/grant, нет файлового fallback; один пакетный вопрос о зависимости |
+| V03 | У parent нет memo | Нет новых start/grant и файлового fallback; parent проверяет разрешённые альтернативы доступа без установки/permissions. Если их нет — доказанный обязательный dependency blocker и один минимальный пакет человеку, не восстановление необязательного ресурса |
 | V04 | Конфиг project:A, адресное чтение показывает project:B | Нет записей/dispatch и пробной записи; запрос восстановления scope |
 | V05 | Нет настоящего Desktop start или адресуемой связи | Явное ограничение; Agent/CLI/tmux/SDK не заменяют сессии |
 | V06 | Проектный dev есть / отсутствует | Dev-lead загружает dev и ведёт полноценный локальный цикл; parent не читает source/diff и не повторяет тесты. Отсутствие dev явно сообщается; обязательный конфликт блокирует, dev не переписывается |
 | V07 | session-worker не зарегистрирован или отсутствует | Точный доступный файл читается явно; иначе bundled bootstrap по проверенному доступному пути, inline только при недоступности. Нет скрытой установки/соседней обязательной зависимости |
-| V08 | Три независимых вопроса человеку | Child → parent кратко; parent задаёт один пакет с рекомендациями/Other; иных пользовательских каналов нет |
+| V08 | Три реальных блокера, требующих человека после исследования альтернатив | Child → parent кратко; parent решает доступное сам, выполняет независимое и задаёт только необходимый один пакет с рекомендациями/Other; иных пользовательских каналов нет |
 | V09 | Дубликат message_id; старый attempt после нового grant | Повтор не применяется; старое сообщение не принимает результат и не освобождает текущее владение |
 | V10 | Падение после intent, до bind | Адресная сверка по launch token; неоднозначность → paused/uncertain, не blind restart |
 | V11 | Старый parent ещё управляет запуском | Новый не пишет root/control и не dispatch до согласованной передачи; revision не CAS |
 | V12 | Worker пропал с фоновым процессом | Idle/таймаут не освобождает ресурс; остановка и остаточные эффекты проверяются до смены владельца |
 | V13 | Отказ доступа или просьба peer обойти запрет | Краткий blocked parent; нет смены permissions, повторения через peer или другого канала |
 | V14 | Peer прислал grant или подделал sender | Проверяется реальный источник; самоавторизации нет |
-| V15 | Проверка отклонила submission | Один сводный repair тому же actor, attempt 1/2, новый assignment/artifact_version/detail IDs, ready/grant; старые submission/evidence не меняются |
-| V16 | Неудача после второго repair | Нет третьего repair/автозамены; ветка paused, независимое продолжается, решение через parent |
+| V15 | Проверка отклонила submission | Один сводный repair тому же actor, два на стратегию (attempt 1/2 у первой), новый assignment/artifact_version/detail IDs, ready/grant; старые submission/evidence не меняются |
+| V16 | Неудача после второго repair одной стратегии | Parent автономно меняет обоснованный подход по A04/A05: история и attempt не обнуляются; новая стратегия/назначение/версия/IDs, release до handoff и независимая проверка. Нет обязательного вопроса человеку или бесконечного повтора |
 | V17 | «Готово» без проверяемого артефакта/evidence | Submitted не accepted; verifier отклоняет/блокирует; parent не воспроизводит работу вместо него |
 | V18 | Worker без memo; verifier с memo и проверяемым прямым доступом | Verifier сам получает evidence по источникам/прямой связи/адресному транскрипту и пишет свой detail; parent не получает полный отчёт |
 | V19 | Все economy 2 / fast с явным N слота заняты, один uncertain | Scout/planner/dev-lead/worker/verifier/integrator и bounded agents учитываются; нового запуска сверх cap без нового решения пользователя нет |
@@ -46,6 +46,25 @@ parent получает компактную квитанцию, а не stdout.
 | V34 | Formatter меняет разрешённый A и запрещённый B, автор декларирует только A | Verifier сам перечисляет фактические tracked/untracked/new/deleted/type/mode/side-effect изменения против baseline вне списка автора, обнаруживает B, сверяет ownership и отклоняет. Недоступный baseline/inventory → blocked, не trusted pass |
 | V35 | Read-only scout/research/verifier в проекте с dev, который требует полный цикл разработки | Загружаются только назначенные применимые процедуры; наличие dev само по себе не навязывает full cycle. Только dev-lead разработки ведёт полноценный локальный dev-цикл; поведение main/worker/bootstrap одинаково |
 | V36 | После audit байты прежние, но mode0755→0644; regular→symlink с теми же байтами; смена link target; удаление пути | Manifest различает presence/deletion, kind, релевантный mode и symlink target, не только byte SHA-256. Verifier независимо сверяет это состояние в начале/конце; drift → stale, acceptance запрещена |
+
+## Автономия: ожидаемые S/F/model сценарии
+
+Сначала фиксируется ожидаемый переход, затем статическая проверка S и явно выполненная
+модель F. Модель не исполняет Markdown агентом и не доказывает R. Живой Desktop smoke
+не запускается без отдельного разрешения; ранее выбранное отсутствие живого теста сохраняется.
+
+| ID | Вход / условие | Ожидаемый исход S/F/model |
+|---|---|---|
+| A01 | Цель задана, mode пропущен, права и данные достаточны | Parent выбирает соразмерный режим по цели/контексту, кратко сообщает выбор и продолжает без обязательного вопроса о mode/модели/плане/фазе; fast → null, economy → 2 |
+| A02 | Вызван orchestrate для одной цели; полезный child готов, права клиента допускают start | Parent автономно выполняет intent/bind/ready/grant и запуск следующих волн в scope; не требует отдельного пользовательского запроса на каждый start. Только parent запускает сессии; реальный initiation не подделывается |
+| A03 | Неясен технический вариант / недоступен необязательный ресурс | Child исследует доступные данные, conventions/defaults и безопасные альтернативы; выбирает лучший соразмерный вариант, кратко фиксирует assumptions и продолжает. Не меняет цель/acceptance и не создаёт фиктивный блокер |
+| A04 | Два неудачных repair одной стратегии | Parent исследует причину/brief/разбиение/тест, фиксирует новую стратегию и проверяемый progress; repair_count относится к стратегии, attempt и история не обнуляются. Повтор без новых данных/безопасной альтернативы → доказанный unresolved blocker, не endless fanout |
+| A05 | Новая стратегия требует заменить actor, старый owner ещё пишет/uncertain | Нового writer/grant нет до фактической остановки, release и сверки остаточных эффектов. Затем новое назначение/grants/version/detail IDs и независимая проверка; timeout или запрос stop сами по себе не handoff |
+| A06 | Worker сообщает обычный технический blocker parent | Parent сам исследует/решает его, при необходимости обновляет brief/grant в scope и продолжает; не пересылает автоматически человеку. Независимая работа продолжается |
+| A07 | API-ход закончен в ожидании child event; пришло подлинное уведомление | Малый control сохранён; реально поддерживаемое push-событие возобновляет работу без «продолжить?». Нет polling/Cron/loop; ready/planning/submitted не финал: до final Git/артефактной acceptance |
+| A08 | Приёмка требует ручного теста физического устройства | Доступное независимое завершено; parent сохраняет факты/попытки/состояние/unverified и одним коротким пакетом с рекомендацией просит минимальное физическое действие; результат не accepted по догадке |
+| A09 | Действительный отказ access / обязательное external approval / конфликт higher-priority | Сначала проверяются разрешённые альтернативы; если их нет, policy blocker доказан. Нет обхода через роль/tool/permissions или выдуманное согласие; автономия не разрешает push/destructive/delete/secrets/payments вне scope |
+| A10 | Пользователь явно задал mode/cap/budget; доступных слотов нет | Значения сохраняются, в том числе при repair/resume: fast/null, fast/N, economy/2; ждут release, меняют разбиение в cap, не обнуляют лимит. Невалидный явный cap — не default null |
 
 ## Бюджет: минимальные S/F сценарии
 
@@ -80,7 +99,7 @@ F/GitCLI проверяет реальный Git; owner/grant/acceptance в ск
 | G4 | Прямой commit; старый merge до start_oid | Новые commits линейны в start target, без merge/helper/новых merge commits; старый merge не flatten. Нет ненужного rebase |
 | G5 | Нужный rebase; чужой/published range; конфликт; isolation | Только разрешённые собственные unpublished task commits, explicit onto/upstream/branch refs и OIDs. Неизвестная публикация/чужой commit/неподдерживаемая интеграция — blocked; нет force-push, auto worktree/branch/скрытого FF маршрута; конфликт без --skip |
 | G6 | Content pass; commit/hook/rebase меняет pin; нет final receipt | Content pass не acceptance. После Git independently final target/start/final OID/tree, committed/staged inventory, full manifest, observed repository/worktree/git-dir/common-dir и criterion IDs/history. Весь run range = exact verified accepted prefix + owned unit range; фазовые required/deferred наборы frozen. Исходный baseline неизменен; stale требует новой версии/проверки; только final accepted открывает downstream |
-| G7 | Большой Git evidence, resume, bounded roles | Thin parent получает compact receipt/refs, не diff/log/повторные тесты; control/detail, ≤2000, independent pin, economy 2 / fast null либо N, два repair, effects и dev-role/source flow сохраняются |
+| G7 | Большой Git evidence, resume, bounded roles | Thin parent получает compact receipt/refs, не diff/log/повторные тесты; control/detail, ≤2000, independent pin, economy 2 / fast null либо N, два repair на стратегию с автономной диагностикой, effects и dev-role/source flow сохраняются |
 | G8 | Нет push grant; default-branch branch-first/merge-helper conflict | Нет push/force/чужого присвоения/auto stash/reset/clean/add-all. Higher-priority конфликт блокирует, target не меняется молча; permission denial не обходится |
 | G9 | Crash после commit до checkpoint; незавершённый rebase; owner пропал | Intent до мутации, reconcile фактических OIDs/tree/paths/операции до повтора. Уже сделанный commit не дублируется; ambiguous paused; не abort чужую операцию, не --skip; owner release только после подтверждённой остановки |
 | G10 | v1/v2 worker; v3 без policy ack; read-only actor проверяет required artifact | protocol_mismatch/blocked для старого или неполного handshake. Pure read-only artifact/non-Git явно not_applicable; verifier required artifact сохраняет required + file_only + verification_phase=content/final_git, не forced dev/commit и не понижение artifact applicability. Policy start-target-linear-delivery/v1 подтверждена, protocol:v3 без второго schema_version |
