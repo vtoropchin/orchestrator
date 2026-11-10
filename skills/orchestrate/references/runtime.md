@@ -45,6 +45,7 @@ runtime:
   capabilities: {spawn: true, channel: true, reconcile: true, wake: true, result: false, child_memo: true}
   mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>}
   limits: [] # например: нет вложенной делегации, нет вопросов человеку у child, предел параллельных субагентов
+  model_map: {top: <ID|null>, coding: <ID|null>, light: <ID|null>, selection: <chosen|unsupported>} # см. model-selection.md
 ```
 
 Transport фиксируется для каждого назначения. Resume в другом клиенте может выбрать новый
@@ -119,4 +120,5 @@ transport для новых назначений; незавершённые н�
 
 Имена инструментов, параметры запуска, выбор модели и пути установки скилов берите из среды
 и документации клиента. Не меняйте модель, effort, permissions, MCP и настройки parent ради
-запуска; выбор модели child — из реально доступных, без угадывания ID по памяти.
+запуска; выбор модели child — из реально доступных, без угадывания ID по памяти,
+по профилям и порогам [выбора модели](model-selection.md).

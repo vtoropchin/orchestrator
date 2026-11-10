@@ -96,6 +96,7 @@ Control содержит только текущие управляющие да
 - protocol/run/task, role, assignment_id/attempt/repair_count, transport, session_id
   (при delegated — ID вызова либо handle `<assignment_id>/<gate|exec>`);
 - launch_name/token/state (reserved|intent|bound|uncertain), текущие зависимости;
+- model: profile/model_id/effort/reason/selection по [выбору модели](model-selection.md);
 - компактные физические read/write/side-effect границы, owner, grant/release;
 - acceptance (pending|rejected|accepted|paused), audit reservation;
 - brief/design/result/evidence/verification/receipt IDs, writer/операции, version/manifest pin;
