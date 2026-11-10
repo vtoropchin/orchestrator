@@ -29,11 +29,12 @@ class ConfigureJev(unittest.TestCase):
     def git_init(self):
         subprocess.run(["git", "init", "-q", str(self.dir)], check=True)
 
-    def run_script(self, answers, jev_py=None):
+    def run_script(self, answers, jev_py=None, env=None):
         args = ["sh", str(SCRIPT), str(self.dir)] + ([str(jev_py)] if jev_py else [])
-        proc = subprocess.run(args, input="\n".join(answers) + "\n", capture_output=True,
-                              text=True, timeout=60, env=clean_env())
-        return proc.returncode, proc.stdout + proc.stderr
+        data = answers if isinstance(answers, bytes) else ("\n".join(answers) + "\n").encode()
+        proc = subprocess.run(args, input=data, capture_output=True, timeout=60,
+                              env=env or clean_env())
+        return proc.returncode, (proc.stdout + proc.stderr).decode("utf-8", "replace")
 
     def test_decline_writes_nothing(self):
         code, out = self.run_script(["n"])
@@ -54,13 +55,13 @@ class ConfigureJev(unittest.TestCase):
         self.assertEqual([p.name for p in self.dir.glob(".env.jev.*")], [])
 
     def test_other_lines_kept_and_old_jev_lines_replaced(self):
-        self.env_file.write_text("OTHER=1\nexport JEV_AI_API_KEY=old\nJEV_AI_MODEL=x\nLAST=2")
-        code, out = self.run_script(["y", "y", "https://api.typesafe.ai/", "jev-1.14.0", KEY])
+        self.env_file.write_text("OTHER=1\nexport JEV_AI_BASE_URL=old\nJEV_AI_MODEL=x\nLAST=2")
+        code, out = self.run_script(["y", "https://api.typesafe.ai/", "jev-1.14.0", KEY])
         self.assertEqual(code, 0, out)
         lines = self.env_file.read_text().splitlines()
         self.assertIn("OTHER=1", lines)
         self.assertIn("LAST=2", lines)
-        self.assertNotIn("export JEV_AI_API_KEY=old", lines)
+        self.assertNotIn("export JEV_AI_BASE_URL=old", lines)
         self.assertNotIn("JEV_AI_MODEL=x", lines)
         self.assertIn("JEV_AI_BASE_URL=https://api.typesafe.ai", lines)
         self.assertIn("JEV_AI_MODEL=jev-1.14.0", lines)
@@ -90,12 +91,55 @@ class ConfigureJev(unittest.TestCase):
         code, out = self.run_script(["y", "", "", KEY])
         self.assertEqual(list(self.env_file.iterdir()), [])
 
-    def test_existing_key_kept_when_replacement_declined(self):
-        original = "JEV_AI_API_KEY=old\n"
-        self.env_file.write_text(original)
-        code, out = self.run_script(["y", "n"])
+    def test_configured_dotenv_asks_nothing_and_changes_nothing(self):
+        for line in ("JEV_AI_API_KEY=old-SECRET-123\n", "export JEV_AI_API_KEY='old-SECRET-123'\n",
+                     "TYPESAFE_API_KEY=old-SECRET-123\n"):
+            for jev_py in (JEV_PY, None):
+                self.env_file.write_text("A=1\n" + line)
+                code, out = self.run_script([], jev_py=jev_py)
+                self.assertEqual(code, 0, out)
+                self.assertEqual(self.env_file.read_text(), "A=1\n" + line)
+                self.assertIn("уже настроен", out)
+                self.assertNotIn("Настроить Jev", out)
+                self.assertNotIn("old-SECRET-123", out)
+
+    def test_empty_or_overridden_key_is_not_configured(self):
+        for text in ('JEV_AI_API_KEY=""\n', "JEV_AI_API_KEY=''\n",
+                     "JEV_AI_API_KEY=real\nJEV_AI_API_KEY=\n"):
+            self.env_file.write_text(text)
+            code, out = self.run_script(["n"], jev_py=JEV_PY)
+            self.assertIn("Настроить Jev", out, text)
+        for text in ('JEV_AI_API_KEY=""\n', "JEV_AI_API_KEY=''\n"):
+            self.env_file.write_text(text)
+            code, out = self.run_script(["n"])
+            self.assertIn("Настроить Jev", out, text)
+
+    def test_rejected_config_is_reported_without_questions(self):
+        self.env_file.write_text("JEV_AI_API_KEY=k-SECRET\nJEV_AI_BASE_URL=http://evil.example\n")
+        code, out = self.run_script([], jev_py=JEV_PY)
         self.assertEqual(code, 0, out)
-        self.assertEqual(self.env_file.read_text(), original)
+        self.assertIn("не принята", out)
+        self.assertNotIn("Настроить Jev", out)
+        self.assertNotIn("k-SECRET", out)
+
+    def test_configured_by_environment_asks_nothing(self):
+        code, out = self.run_script([], env=clean_env(JEV_AI_API_KEY=KEY))
+        self.assertEqual(code, 0, out)
+        self.assertIn("уже настроен", out)
+        self.assertFalse(self.env_file.exists())
+        self.assertNotIn(KEY, out)
+
+    def test_empty_key_line_is_not_configured(self):
+        self.env_file.write_text("JEV_AI_API_KEY=\n")
+        code, out = self.run_script(["n"])
+        self.assertIn("Настроить Jev", out)
+
+    def test_broken_utf8_answer_does_not_crash(self):
+        # Стёртая наполовину кириллица: sed на macOS падал с «illegal byte sequence».
+        env = clean_env(LANG="C.UTF-8", LC_ALL="C.UTF-8")
+        code, out = self.run_script(b"\xd0y\n", env=env)
+        self.assertEqual(code, 0, out)
+        self.assertFalse(self.env_file.exists())
 
     def test_tracked_env_file_is_refused(self):
         self.git_init()

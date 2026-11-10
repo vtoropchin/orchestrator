@@ -37,7 +37,8 @@ ask() {
     say 'make install: ввод прерван; настройка Jev пропущена, .env не изменён.' >&2
     exit 0
   fi
-  reply=$(printf '%s' "$reply" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+  # LC_ALL=C: побайтово, иначе sed на macOS падает на недобитом UTF-8 (стёртая кириллица).
+  reply=$(printf '%s' "$reply" | LC_ALL=C sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
   [ -n "$reply" ] || reply=$2
 }
 
@@ -51,6 +52,38 @@ end_with_newline() {
 yes_answer() {
   case $1 in y|Y|yes|Yes|д|Д|да|Да) return 0 ;; *) return 1 ;; esac
 }
+
+# Ключ уже есть — Jev настроен: ничего не спрашиваем и не меняем. Перенастройка — правкой .env.
+# Источник истины — jev.py config (тот же разбор .env, что у orchestrate); без python3 — шаблон.
+configured=0
+if [ -n "$jev_py" ] && [ -f "$jev_py" ] && command -v python3 >/dev/null 2>&1; then
+  status=0
+  out=$(python3 "$jev_py" --project "$work_dir" config 2>&1) || status=$?
+  if [ "$status" -eq 0 ]; then
+    configured=1
+  elif ! printf '%s\n' "$out" | LC_ALL=C grep -q '"not_configured"'; then
+    say '' 'make install: ключ Jev найден, но конфигурация не принята; вопросы пропущены, ничего не изменено.' \
+      "  $out" '  Исправьте JEV_AI_API_KEY, JEV_AI_BASE_URL, JEV_AI_MODEL в .env.'
+    exit 0
+  fi
+else
+  key_re='^[[:space:]]*(export[[:space:]]+)?(JEV_AI_API_KEY|TYPESAFE_API_KEY)[[:space:]]*=[[:space:]]*'
+  key_re=$key_re'([^[:space:]"'"'"']|"[^"]|'"'"'[^'"'"'])'
+  if [ -n "${JEV_AI_API_KEY:-}" ] || [ -n "${TYPESAFE_API_KEY:-}" ] ||
+    { [ -f "$env_file" ] && [ -r "$env_file" ] && LC_ALL=C grep -aEq "$key_re" "$env_file"; }; then
+    configured=1
+    out='(python3 нет: адрес и модель не проверены)'
+  fi
+fi
+if [ "$configured" -eq 1 ]; then
+  say '' 'make install: Jev уже настроен; вопросы пропущены, ничего не изменено.' "  $out" \
+    '  Сменить ключ, адрес или модель — правкой JEV_AI_API_KEY, JEV_AI_BASE_URL, JEV_AI_MODEL в .env.'
+  if [ -f "$env_file" ] && git -C "$work_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 &&
+    ! git -C "$work_dir" check-ignore -q -- .env 2>/dev/null; then
+    say 'make install: внимание — .env не в .gitignore проекта; не коммитьте его.' >&2
+  fi
+  exit 0
+fi
 
 say '' 'make install: orchestrate умеет брать дешёвые суждения у модели Jev (Jev AI/TypeSafe),' \
   '  чтобы не тратить лимиты сильных моделей на калибровку назначений.' \
@@ -81,74 +114,63 @@ if git -C "$work_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   fi
 fi
 
-key_re='^[[:space:]]*(export[[:space:]]+)?JEV_AI_API_KEY[[:space:]]*='
-if [ -f "$env_file" ] && grep -Eq "${key_re}[[:space:]]*[^[:space:]]" "$env_file"; then
-  ask "В $env_file уже есть JEV_AI_API_KEY. Заменить ключ, адрес и модель? (y/N)" 'N'
-  if ! yes_answer "$reply"; then
-    say 'make install: прежние настройки Jev сохранены.'
-    skip_write=1
+while :; do
+  ask 'Адрес API Jev' "$default_base"
+  base=${reply%/}
+  if printf '%s\n' "$base" | LC_ALL=C grep -Eq '^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/%-]*)?$' ||
+    printf '%s\n' "$base" | LC_ALL=C grep -Eq '^http://(127\.0\.0\.1|localhost)(:[0-9]+)?(/[A-Za-z0-9._~/%-]*)?$'; then
+    break
   fi
+  say 'Нужен адрес https://… (http:// — только для localhost).' >&2
+done
+while :; do
+  ask 'Модель Jev' "$default_model"
+  model=$reply
+  printf '%s\n' "$model" | LC_ALL=C grep -Eq '^[A-Za-z0-9._:/-]+$' && break
+  say 'Имя модели: латиница, цифры и . _ : / -' >&2
+done
+
+printf 'Ключ API (создаётся в панели провайдера; ввод не отображается): '
+if [ -t 0 ]; then stty -echo; echo_off=1; fi
+key=
+IFS= read -r key || key=
+if [ "$echo_off" -eq 1 ]; then stty echo; echo_off=0; fi
+printf '\n'
+key=$(printf '%s' "$key" | LC_ALL=C sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+if [ -z "$key" ]; then
+  say 'make install: ключ не введён; .env не изменён.'
+  exit 0
+fi
+# Значения пишутся в .env без кавычек: разрешены только символы, безопасные для shell.
+if printf '%s\n' "$key" | LC_ALL=C grep -Eqv '^[A-Za-z0-9._~+/=:-]+$'; then
+  say 'make install: в ключе допустимы только латиница, цифры и . _ ~ + / = : -; .env не изменён.' >&2
+  exit 0
 fi
 
-if [ "${skip_write:-0}" -eq 0 ]; then
-  while :; do
-    ask 'Адрес API Jev' "$default_base"
-    base=${reply%/}
-    if printf '%s\n' "$base" | grep -Eq '^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/%-]*)?$' ||
-      printf '%s\n' "$base" | grep -Eq '^http://(127\.0\.0\.1|localhost)(:[0-9]+)?(/[A-Za-z0-9._~/%-]*)?$'; then
-      break
-    fi
-    say 'Нужен адрес https://… (http:// — только для localhost).' >&2
-  done
-  while :; do
-    ask 'Модель Jev' "$default_model"
-    model=$reply
-    printf '%s\n' "$model" | grep -Eq '^[A-Za-z0-9._:/-]+$' && break
-    say 'Имя модели: латиница, цифры и . _ : / -' >&2
-  done
-
-  printf 'Ключ API (создаётся в панели провайдера; ввод не отображается): '
-  if [ -t 0 ]; then stty -echo; echo_off=1; fi
-  key=
-  IFS= read -r key || key=
-  if [ "$echo_off" -eq 1 ]; then stty echo; echo_off=0; fi
-  printf '\n'
-  key=$(printf '%s' "$key" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-  if [ -z "$key" ]; then
-    say 'make install: ключ не введён; .env не изменён.'
+# Новый файл рядом с .env: mktemp создаёт его с правами 0600, затем атомарная замена.
+tmp=$(mktemp "$work_dir/.env.jev.XXXXXX")
+if [ -f "$env_file" ]; then
+  # -a и LC_ALL=C: строки с NUL и не-UTF-8 байтами сохраняются как есть.
+  rc=0
+  LC_ALL=C grep -a -Ev '^[[:space:]]*(export[[:space:]]+)?JEV_AI_(API_KEY|BASE_URL|MODEL)[[:space:]]*=' \
+    "$env_file" >"$tmp" || rc=$?
+  if [ "$rc" -gt 1 ]; then
+    say "make install: не удалось прочитать $env_file; .env не изменён." >&2
     exit 0
   fi
-  # Значения пишутся в .env без кавычек: разрешены только символы, безопасные для shell.
-  if printf '%s\n' "$key" | grep -Eqv '^[A-Za-z0-9._~+/=:-]+$'; then
-    say 'make install: в ключе допустимы только латиница, цифры и . _ ~ + / = : -; .env не изменён.' >&2
-    exit 0
-  fi
-
-  # Новый файл рядом с .env: mktemp создаёт его с правами 0600, затем атомарная замена.
-  tmp=$(mktemp "$work_dir/.env.jev.XXXXXX")
-  if [ -f "$env_file" ]; then
-    # -a и LC_ALL=C: строки с NUL и не-UTF-8 байтами сохраняются как есть.
-    rc=0
-    LC_ALL=C grep -a -Ev '^[[:space:]]*(export[[:space:]]+)?JEV_AI_(API_KEY|BASE_URL|MODEL)[[:space:]]*=' \
-      "$env_file" >"$tmp" || rc=$?
-    if [ "$rc" -gt 1 ]; then
-      say "make install: не удалось прочитать $env_file; .env не изменён." >&2
-      exit 0
-    fi
-    end_with_newline "$tmp"
-  fi
-  {
-    printf '%s\n' '# Jev для orchestrate (make install)'
-    printf 'JEV_AI_BASE_URL=%s\n' "$base"
-    printf 'JEV_AI_MODEL=%s\n' "$model"
-    printf 'JEV_AI_API_KEY=%s\n' "$key"
-  } >>"$tmp"
-  key=
-  chmod 600 "$tmp"
-  mv -f -- "$tmp" "$env_file"
-  tmp=
-  say "make install: настройки Jev записаны в $env_file (права 0600)."
+  end_with_newline "$tmp"
 fi
+{
+  printf '%s\n' '# Jev для orchestrate (make install)'
+  printf 'JEV_AI_BASE_URL=%s\n' "$base"
+  printf 'JEV_AI_MODEL=%s\n' "$model"
+  printf 'JEV_AI_API_KEY=%s\n' "$key"
+} >>"$tmp"
+key=
+chmod 600 "$tmp"
+mv -f -- "$tmp" "$env_file"
+tmp=
+say "make install: настройки Jev записаны в $env_file (права 0600)."
 
 if [ "$in_git" -eq 1 ] && ! git -C "$work_dir" check-ignore -q -- .env 2>/dev/null; then
   ask "Файл .env не в .gitignore проекта. Добавить строку .env в $work_dir/.gitignore? (Y/n)" 'Y'
