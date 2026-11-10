@@ -4,7 +4,7 @@
     "adapt": {
       "source": "./skills",
       "sourceType": "local",
-      "computedHash": "7b9d009f07e5aeafb47db2738afa3135e66d78b8e1030303cece44c766b8645d"
+      "computedHash": "c619a3241e5a43ed055bd3d95a57512f0d9a66a02202127ba4070a04e6995294"
     },
     "architectural-boundaries": {
       "source": "./skills",
@@ -34,7 +34,22 @@
     "dev": {
       "source": "./skills",
       "sourceType": "local",
-      "computedHash": "eb8629128ac10ab4e44ab67cda47c2889594eea3e050b283f103f343b3ba1fea"
+      "computedHash": "f1043cdd00cc043346c67050c2a879290b9b99cee4e6139de1ef5bdda57f2ba1"
+    },
+    "i-have-adhd": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "4a321882cd5cb4cf002cf5ad678c14cd0bbb383ab47c6ca166e6ddd5328de80f"
+    },
+    "orchestrate": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "239bb4f653e1c9de87934f5cdb7a2ce17e2d364f9455a6cf84ac8eb96c62ac29"
+    },
+    "session-worker": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "b85934ab928d86e9fa079f689652271d4b39916363abc5ef9b3b5756e1efe1af"
     },
     "skill-creator": {
       "source": "anthropics/skills",
