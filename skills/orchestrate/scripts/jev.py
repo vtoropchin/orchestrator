@@ -331,10 +331,15 @@ def prob(answer, field):
 # ---------- таблицы решений ----------
 
 def decide_profile(facts, judgments):
-    """Профиль назначения. Пол из фактов Jev не понижает; неясный риск — как высокий."""
+    """Профиль назначения. Пол из фактов Jev не понижает; неясный риск — как высокий.
+
+    Риск поднимает только тех, кто пишет, решает или принимает. Read-only сбор фактов
+    ничего не решает (правило 6 model-selection), поэтому риск задачи его не поднимает.
+    """
     rules = []
     level = 0
     role = facts["role"]
+    risk_applies = not facts["read_only"] or role in DECIDING_ROLES
 
     def lift(target, rule):
         nonlocal level
@@ -343,11 +348,13 @@ def decide_profile(facts, judgments):
 
     if facts["writes_code"]:
         lift("coding", "writes_code_floor")
-    if facts["review_md_risk"] == "high":
+    if not risk_applies:
+        rules.append("read_only_risk_not_applied")
+    elif facts["review_md_risk"] == "high":
         lift("top", "review_md_high_floor")
-    if facts["review_md_risk"] == "unknown":
+    elif facts["review_md_risk"] == "unknown":
         lift("top", "review_md_unknown_as_high")
-    for name in RISK_QUESTIONS:
+    for name in RISK_QUESTIONS if risk_applies else ():
         v = judgments[name]["verdict"]
         if v == "yes":
             lift("top", "risk_signal:" + name)
@@ -374,12 +381,24 @@ def calibrate(args):
         "writes_code": require(state, "writes_code", bool),
         "review_md_risk": require(state, "review_md_risk", str, REVIEW_RISKS),
         "author_profile": state.get("author_profile"),
+        # read_only: ни файлов, ни данных, ни внешних эффектов. Не указано — считается записью.
+        "read_only": state.get("read_only", state.get("role") == "scout"),
     }
+    if not isinstance(facts["read_only"], bool):
+        raise Fail(2, "bad_input", "field 'read_only' must be true or false")
+    if facts["read_only"] and facts["writes_code"]:
+        raise Fail(2, "bad_input", "read_only and writes_code cannot both be true")
     if facts["author_profile"] is not None and facts["author_profile"] not in PROFILES:
         raise Fail(2, "bad_input", "field 'author_profile' must be one of " + ", ".join(PROFILES))
     task = {"goal": require(state, "goal", str),
             "acceptance_criteria": string_list(state, "acceptance_criteria"),
             "planned_paths": string_list(state, "planned_paths")}
+    if facts["role"] == "scout":
+        # Scout только собирает факты со ссылками: всегда light, Jev не нужен.
+        if facts["writes_code"] or not facts["read_only"]:
+            raise Fail(2, "bad_input", "scout is read-only; use role worker or dev-lead")
+        return {"profile": "light", "rules": ["scout_facts_only"], "judgments": None,
+                "model": None, "usage": None}
     jev_state = {"task": task}
     check_size(jev_state)
     config = offline_config() if args.response_file else load_config(args.project)

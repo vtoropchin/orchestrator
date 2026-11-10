@@ -73,13 +73,16 @@ jev:
   "acceptance_criteria": ["поле сохраняется", "валидация формата"],
   "planned_paths": ["src/profile/form.py", "tests/profile/test_form.py"],
   "writes_code": true,
+  "read_only": false,
   "review_md_risk": "low",
   "author_profile": null
 }
 ```
 
 - `role`: `scout` | `planner` | `dev-lead` | `worker` | `integrator` | `verifier`.
-- `writes_code`, `review_md_risk` (`low`/`medium`/`high`/`unknown`) и `author_profile`
+- `read_only`: назначение ничего не пишет — ни файлов, ни данных, ни внешних эффектов.
+  Не указано — считается записью (для scout — `true`; scout с записью — ошибка входа).
+- `writes_code`, `read_only`, `review_md_risk` (`low`/`medium`/`high`/`unknown`) и `author_profile`
   (только для verifier) — **факты**, которые вы определяете сами по brief и `REVIEW.md`;
   в Jev они не отправляются, из них таблица строит пол.
 - В Jev уходят только `goal`, `acceptance_criteria`, `planned_paths`. Не кладите туда
@@ -94,19 +97,24 @@ jev:
  "model": "jev-1.14.0", "usage": {"input_tokens": 120, "output_tokens": 0}}
 ```
 
+Для `scout` Jev не вызывается и ключ не нужен; ответ —
+`{"profile": "light", "rules": ["scout_facts_only"], "judgments": null, "model": null, "usage": null}`.
+
 Таблица (в скрипте; пороги вероятности «да» ≥ 0.7, «нет» ≤ 0.3, между — «неясно»):
 
 | Условие | Профиль не ниже |
 |---|---|
+| `role` = `scout` | всегда `light`; Jev не вызывается (`scout_facts_only`); scout с `writes_code` — ошибка входа |
 | `writes_code` | `coding` |
-| `review_md_risk` = `high` или `unknown` | `top` |
-| Затронуты права, секреты, внешний ввод, хранимые данные или публичный контракт — «да» **или «неясно»** | `top` |
-| P(T2 или T3) ≥ 0.3, либо требования неоднозначны / нужен выбор архитектуры (не «нет») | `top` для planner, dev-lead, integrator, verifier; `coding` для scout и worker |
+| `review_md_risk` = `high` или `unknown` — если не `read_only` или роль решающая | `top` |
+| Затронуты права, секреты, внешний ввод, хранимые данные или публичный контракт — «да» **или «неясно»**, с тем же условием | `top` |
+| Worker с `read_only`: риск не применяется (`read_only_risk_not_applied`) | — |
+| P(T2 или T3) ≥ 0.3, либо требования неоднозначны / нужен выбор архитектуры (не «нет») | `top` для planner, dev-lead, integrator, verifier; `coding` для worker |
 | Иначе: planner, dev-lead, integrator, verifier | `coding` |
-| Иначе: scout или worker без кода | `light` |
+| Иначе: worker | `light` |
 | verifier | не ниже `author_profile` |
 
-Итог — максимум сработавших строк. Пороги качества из [выбора модели](model-selection.md)
+Решающие роли — planner, dev-lead, integrator, verifier. Итог — максимум сработавших строк. Пороги качества из [выбора модели](model-selection.md)
 (код не ниже `coding`, verifier ≥ автора, понижения нет) действуют поверх: результат,
 который их нарушает, не применяйте. Профиль затем превращается в конкретную модель по
 каталогу (`model-selection.md`, «Каталог моделей»).

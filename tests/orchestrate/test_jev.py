@@ -125,16 +125,56 @@ class CalibrateTable(Tmp):
         code, out, _ = self.calibrate(BASE_STATE, calibrate_response(size=(0.1, 0.3, 0.5, 0.1)))
         self.assertEqual(out["profile"], "coding")
 
-    def test_open_question_for_read_only_scout_gets_coding(self):
-        state = dict(BASE_STATE, role="scout", writes_code=False)
-        code, out, _ = self.calibrate(state, calibrate_response(design_choice=0.5))
-        self.assertEqual(out["profile"], "coding")
+    def test_scout_is_light_without_calling_jev(self):
+        state = self.write("state.json", dict(BASE_STATE, role="scout", writes_code=False,
+                                              review_md_risk="high"))
+        code, out, raw = run(["calibrate", "--state", str(state)], self.dir)
+        self.assertEqual(code, 0, raw)
+        self.assertEqual(out["profile"], "light")
+        self.assertEqual(out["rules"], ["scout_facts_only"])
+        self.assertIsNone(out["model"])
 
-    def test_risk_signal_yes_gets_top_even_for_scout(self):
-        state = dict(BASE_STATE, role="scout", writes_code=False)
-        code, out, _ = self.calibrate(state, calibrate_response(secrets=0.9))
+    def test_scout_that_writes_code_is_input_error(self):
+        code, out, _ = self.calibrate(dict(BASE_STATE, role="scout"), calibrate_response())
+        self.assertEqual(code, 2)
+
+    def test_scout_that_is_not_read_only_is_input_error(self):
+        state = dict(BASE_STATE, role="scout", writes_code=False, read_only=False)
+        code, out, _ = self.calibrate(state, calibrate_response())
+        self.assertEqual(code, 2)
+
+    def test_scout_without_goal_is_input_error(self):
+        state = {k: v for k, v in BASE_STATE.items() if k != "goal"}
+        code, out, _ = self.calibrate(dict(state, role="scout", writes_code=False),
+                                      calibrate_response())
+        self.assertEqual(code, 2)
+
+    def test_risk_does_not_lift_read_only_worker(self):
+        state = dict(BASE_STATE, writes_code=False, read_only=True, review_md_risk="high")
+        code, out, _ = self.calibrate(state, calibrate_response(secrets=0.9, migration=0.5))
+        self.assertEqual(code, 0)
+        self.assertEqual(out["profile"], "light")
+        self.assertIn("read_only_risk_not_applied", out["rules"])
+
+    def test_risk_lifts_worker_that_writes_data_but_not_code(self):
+        state = dict(BASE_STATE, writes_code=False, review_md_risk="high")
+        code, out, _ = self.calibrate(state, calibrate_response(migration=0.9))
+        self.assertEqual(out["profile"], "top")
+        self.assertIn("review_md_high_floor", out["rules"])
+
+    def test_read_only_with_code_writing_is_input_error(self):
+        code, out, _ = self.calibrate(dict(BASE_STATE, read_only=True), calibrate_response())
+        self.assertEqual(code, 2)
+
+    def test_risk_signal_lifts_writing_worker_to_top(self):
+        code, out, _ = self.calibrate(BASE_STATE, calibrate_response(secrets=0.9))
         self.assertEqual(out["profile"], "top")
         self.assertIn("risk_signal:secrets", out["rules"])
+
+    def test_risk_signal_lifts_read_only_verifier(self):
+        state = dict(BASE_STATE, role="verifier", writes_code=False)
+        code, out, _ = self.calibrate(state, calibrate_response(auth=0.9))
+        self.assertEqual(out["profile"], "top")
 
     def test_unclear_risk_is_treated_as_high(self):
         code, out, _ = self.calibrate(BASE_STATE, calibrate_response(migration=0.5))
