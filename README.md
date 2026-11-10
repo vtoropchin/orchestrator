@@ -9,7 +9,7 @@
 
 | Скил | Назначение | Внешние требования |
 |---|---|---|
-| [orchestrate](skills/orchestrate/SKILL.md) | Тонкий parent, нацеленный на скорость: карта зависимостей задач из memo или декомпозиция большой задачи, параллельные child-сессии/субагенты в своих Git worktree, слияние в интеграционную ветку, независимая проверка итога и восстановление v3 | Клиент агента, запускающий child со свежим контекстом (сессии или субагенты); настроенный MCP memo с подтверждённым project scope |
+| [orchestrate](skills/orchestrate/SKILL.md) | Тонкий parent, нацеленный на скорость: карта зависимостей задач из memo или декомпозиция большой задачи, параллельные child-сессии/субагенты в своих Git worktree, слияние в интеграционную ветку, независимая проверка итога и восстановление v3 | Клиент агента, запускающий child со свежим контекстом (сессии или субагенты); настроенный MCP memo с подтверждённым project scope; необязательно — Jev (python3 и ключ в `.env`) |
 | [session-worker](skills/session-worker/SKILL.md) | Scout/planner/dev-lead/worker/verifier: полные details у потребителей, короткий результат parent | Полный brief v3 и канал к parent (адресуемая связь или итог вызова субагента); без memo нужен независимый verifier с memo и проверяемыми источниками evidence |
 | [i-have-adhd](skills/i-have-adhd/SKILL.md) | Стиль сообщений для читателя с СДВГ: первым — следующее действие, нумерованные шаги, без преамбулы. `dev` и `orchestrate` включают его по умолчанию только для сообщений пользователю; выключается фразой «stop adhd mode». Копия [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT), отличия — в [upstream.md](skills/i-have-adhd/references/upstream.md) | Нет; без него оркестраторы пишут в обычном стиле |
 
@@ -112,7 +112,8 @@ Desktop собраны в отдельном [адаптере](skills/orchestra
 skills/                         распространяемые скилы: по каталогу на скил
   orchestrate/                  координатор child-агентов и memo-протокол
     SKILL.md                    метаданные и основной сценарий
-    references/                 контракты, runtime клиентов, bootstrap и сценарии проверки
+    references/                 контракты, runtime клиентов, bootstrap, Jev и сценарии проверки
+    scripts/jev.py              суждения Jev для выбора модели (Python 3 stdlib)
   session-worker/               самостоятельный исполнитель
     SKILL.md                    роль, ready/grant, выполнение, ограничения
     references/                 полный контракт назначения и отчёта
@@ -123,6 +124,8 @@ skills/                         распространяемые скилы: п�
   clean-architecture/ …         скилы дисциплины
 templates/skill/SKILL.md.template  шаблон для авторинга, не готовый скил
 scripts/check-skills.sh          проверка метаданных публичного каталога
+scripts/configure-jev.sh         шаг make install: ключ и адрес Jev в .env проекта
+tests/orchestrate/               тесты jev.py и configure-jev.sh без сети
 .agents/skills/                  служебная установка набора (dev, adapt и др.) и memo для DeepSeek Harness
 .claude/skills/                  симлинки на .agents/skills/, memo и skill-creator для Claude Code
 .claude/agents/                  служебные агенты разработки
@@ -327,6 +330,16 @@ DeepSeek Harness (dsh) в списке агентов CLI отдельно не 
 источника лежит в `.agents/skills` выбранного проекта, то есть что увидит dsh.
 `dev` и `orchestrate` по умолчанию включают стиль `i-have-adhd`, поэтому отметьте его вместе
 с ними; если оркестратор установлен, а `i-have-adhd` нет, `make install` напомнит об этом.
+
+Если в проект установлен `orchestrate`, `make install` предложит настроить Jev — дешёвую
+модель-«решатель», с которой оркестратор калибрует выбор модели и экономит лимиты сильных
+моделей ([jev.md](skills/orchestrate/references/jev.md)). Спрашиваются адрес API
+(по умолчанию `https://jev-ai.pro/api`), модель (`jev-latest`) и ключ (ввод скрыт); они
+записываются в `.env` проекта (`JEV_AI_BASE_URL`, `JEV_AI_MODEL`, `JEV_AI_API_KEY`, права
+`0600`, остальные строки сохраняются), `.env` по согласию добавляется в `.gitignore`, затем
+можно проверить подключение запросом списка моделей — баланс он не тратит. Отказ — оркестратор
+работает без Jev. Повторить отдельно: `sh scripts/configure-jev.sh <проект>`.
+
 Источник — только публичный каталог `skills/` этого репозитория (определяется по
 расположению Makefile), без служебных скилов `.claude/skills/`. Диалог и запуск CLI —
 в `scripts/install.sh`.

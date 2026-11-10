@@ -2,10 +2,12 @@
 # Интерактивный запуск skills CLI для make install.
 # Спрашивает рабочую директорию и запускает CLI из неё: проектная установка
 # попадает в выбранный каталог. После установки сообщает, что получил
-# DeepSeek Harness (dsh). Собственного установщика здесь нет.
+# DeepSeek Harness (dsh) и, если поставлен orchestrate, предлагает настроить Jev
+# (scripts/configure-jev.sh). Собственного установщика здесь нет.
 #
 # Использование: sh scripts/install.sh <каталог skills/> <директория по умолчанию>
 set -eu
+script_dir=$(cd -- "$(dirname -- "$0")" && pwd -P)
 
 if [ "$#" -ne 2 ]; then
   printf '%s\n' 'Использование: sh scripts/install.sh <каталог skills/> <директория по умолчанию>' >&2
@@ -79,4 +81,12 @@ if [ -f "$skills_dir/i-have-adhd/SKILL.md" ] && [ ! -f "$skills_root/i-have-adhd
   { [ -f "$skills_root/dev/SKILL.md" ] || [ -f "$skills_root/orchestrate/SKILL.md" ]; }; then
   printf 'make install: в %s нет i-have-adhd: dev/orchestrate будут писать в обычном стиле.\n  %s\n' \
     "$skills_root" 'Чтобы включить его, повторите make install и отметьте i-have-adhd.'
+fi
+
+# orchestrate может брать суждения у Jev: ключ и адрес нужны в .env проекта.
+if [ -f "$skills_root/orchestrate/SKILL.md" ] || [ -f "$work_dir/.claude/skills/orchestrate/SKILL.md" ]; then
+  sh "$script_dir/configure-jev.sh" "$work_dir" "$skills_dir/orchestrate/scripts/jev.py"
+elif [ -f "$skills_dir/orchestrate/SKILL.md" ]; then
+  printf 'make install: orchestrate не найден в проекте. Если он установлен глобально, настроить\n  %s\n' \
+    "Jev для проекта можно так: sh $script_dir/configure-jev.sh $work_dir"
 fi

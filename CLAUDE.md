@@ -84,6 +84,8 @@
 - Метаданные публичных пакетов: `sh scripts/check-skills.sh`.
 - Синтаксис оболочки: `sh -n scripts/check-skills.sh`.
 - Контракт ревью: `sh .claude/skills/dev/scripts/review-lint.sh`.
+- Jev в `orchestrate` и шаг `make install`: `python3 -m unittest discover -s tests/orchestrate`
+  (без внешней сети: сохранённые ответы и сервер на 127.0.0.1).
 
 Проверка метаданных требует uv/uvx при наличии пакетов; исходник skills-ref закреплён
 коммитом в скрипте. Загрузка идёт в кэш uv, `.env` не подхватывается. Библиотека

@@ -17,6 +17,7 @@ Agent или другого клиента с поддержкой Agent Skills.
 | WAKE | Push-уведомление о сообщении или завершении child | Событие самого клиента, не опрос |
 | RESULT | Возврат итогового сообщения child как результата вызова parent | Итог связан с конкретным вызовом; разговор child завершён при возврате |
 | MEMO | MCP memo у parent и, по возможности, у child | Схемы `memory_*`; наследует ли child MCP-серверы parent |
+| JUDGE | Необязательно: parent запускает `python3` (≥ 3.9) в shell и достаёт до хоста Jev | `jev.py config` и `jev.py check` ([jev](jev.md)); нет — `jev.mode: off`, это не блокер |
 | WORKTREE | Отдельный Git worktree у каждого writer | Изоляция клиента (worktree-режим субагента/сессии) либо child может работать в каталоге, который parent создал `git worktree add`; child видит свой git-dir и общий common-dir |
 
 SPAWN — механизм самого клиента-хоста, видимый и подчинённый его правам. Процессы, запущенные
@@ -46,7 +47,8 @@ runtime:
   capabilities: {spawn: true, channel: true, reconcile: true, wake: true, result: false, child_memo: true, worktree: client} # worktree: client | parent | none
   mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>, worktree: <параметр изоляции клиента | git worktree add | null>}
   limits: [] # например: нет вложенной делегации, нет вопросов человеку у child, предел параллельных субагентов
-  model_map: {top: <ID|null>, coding: <ID|null>, light: <ID|null>, selection: <chosen|unsupported>} # см. model-selection.md
+  model_catalog: {client: <клиент>, source: <откуда>, models: [], selection: <chosen|unsupported>} # см. model-selection.md, «Каталог моделей клиента»
+  jev: {mode: off, provider: null, host: null, consent_ref: null} # off | shadow | apply; см. jev.md
 ```
 
 WORKTREE выбирает Git policy ([параллельная доставка](parallel-delivery.md#4-worktree-и-ветки)):
