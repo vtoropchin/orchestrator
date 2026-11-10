@@ -1,7 +1,7 @@
 ---
 name: adapt
-description: "Adapts the installed Clean Architecture skill set to the current project and its coding agents (Claude Code, DeepSeek Harness, Hermes Agent and others) — profiles the stack, wires the set to each agent client (named agents from the dev roles, memo MCP and hooks merged instead of overwritten), fixes the memo project scope, writes the stable architecture rules into AGENTS.md/CLAUDE.md, creates the REVIEW.md skeleton that sets review risk by path, sets up automated enforcement of the Dependency Rule and calibrates away false positives. Run it inside the project after the set was installed (make install or the skills CLI), and again after reinstalling to update; it never overwrites REVIEW.md or the project's rules. Use when asked to adapt, set up, configure or update the Clean Architecture set in this project, or when invoked as /adapt or /adapt update."
-compatibility: "Набор установлен в проект рядом с этим скилом (нужен как минимум dev); git; для памяти — установленный пользователем memo. Сам adapt файлы скилов не копирует и ничего не устанавливает глобально."
+description: "Adapts the installed Clean Architecture skill set to the current project and its coding agents (Claude Code, DeepSeek Harness, Hermes Agent and others) — profiles the stack, wires the set to each agent client (named agents from the dev roles; long-term memory through `memo init` of agent-memory with a confirmed project scope), writes the stable architecture rules into AGENTS.md/CLAUDE.md, creates the REVIEW.md skeleton that sets review risk by path, sets up automated enforcement of the Dependency Rule and calibrates away false positives. Run it inside the project after the set was installed (make install or the skills CLI), and again after reinstalling to update; it never overwrites REVIEW.md or the project's rules. Use when asked to adapt, set up, configure or update the Clean Architecture set in this project, or when invoked as /adapt or /adapt update."
+compatibility: "Набор установлен в проект рядом с этим скилом (нужен как минимум dev); git; для памяти — установленный пользователем memo (agent-memory) с командой memo init. Сам adapt файлы скилов не копирует и ничего не устанавливает глобально."
 ---
 
 # `adapt` — адаптация установленного набора под проект и клиентов агента
@@ -18,7 +18,7 @@ compatibility: "Набор установлен в проект рядом с э
 `references/stack-profiles.md`; средства принуждения правила зависимостей —
 `references/enforcement.md`; блок правил и выбор файла — `references/rules-file.md`; шаблон,
 каркас и обновление `REVIEW.md` — `references/review-template.md`; ручной путь —
-`references/manual-adaptation.md`. Шаблоны конфигов — `assets/`.
+`references/manual-adaptation.md`.
 
 ## Железные правила
 
@@ -30,9 +30,10 @@ compatibility: "Набор установлен в проект рядом с э
    дополняется строкой `REVIEW.md merge=union`. Конфликт решает пользователь.
 4. **Секреты не переносятся и не читаются.** `.env` создаётся только с пустым значением ключа.
 5. **Первая запись — только после подтверждённого плана** (гейт 2).
-6. **Канал вопросов — из файла правил проекта.** Если `AGENTS.md`/`CLAUDE.md` задаёт другой
-   канал для вопросов и отчёта (например, режим исполнителя оркестратора), вопросы,
-   подтверждения гейтов и отчёт идут туда.
+6. **Канал вопросов — из назначения или файла правил проекта.** Если скил выполняется по
+   назначению `orchestrate` (brief v3) или `AGENTS.md`/`CLAUDE.md` задаёт другой канал, вопросы,
+   подтверждения гейтов и отчёт идут туда, а записи — только в пути из `write_paths` brief;
+   имя scope памяти и перезапись существующих файлов подтверждает пользователь через parent.
 7. **Имена инструментов клиента** берутся из адаптера клиента и фактических схем сессии; для
    клиента без адаптера шаг, который нельзя проверить на месте, пропускается и попадает в отчёт.
 
@@ -116,10 +117,8 @@ compatibility: "Набор установлен в проект рядом с э
 1. **Именованные агенты** — для клиентов с адаптером: из файлов ролей `dev`
    (`references/agents/*.md` скила `dev`) по адаптеру клиента. Клиент без адаптера — пропуск:
    `dev` запускает роли общим субагентом.
-2. **Память** — `agentmemory.toml` из `assets/agentmemory.toml` с подтверждённым именем
-   проекта, `.env` с пустым `DEEPSEEK_API_KEY=`, `.env` в `.gitignore`; подключение `memo` к
-   каждому клиенту — его командой настройки, шаблоном адаптера или по документации клиента,
-   с фактическим путём к бинарю.
+2. **Память** — `memo init` для каждого клиента, которого он знает, с подтверждённым именем
+   проекта; для остальных — MCP по документации клиента (`references/wiring.md`, §4).
 3. Конфиги **сливаются**, не перезаписываются. После записи перечитать каждый и проверить, что
    он валиден, а прежние ключи на месте.
 
@@ -129,7 +128,7 @@ compatibility: "Набор установлен в проект рядом с э
 ## Фаза 4. Проверить имя проекта в памяти
 
 Если `memo` подключён: `[scope] project` в `agentmemory.toml` совпадает с подтверждённым
-именем; в записанных конфигах нет имени другого проекта. Если память уже была подключена
+именем; в конфигах и скилах `memo` нет имени другого проекта; `memo doctor` без ❌. Если память уже была подключена
 раньше — имя не меняется без отдельного вопроса: это сменило бы scope всех записей.
 
 **Гейт 4:** имя проекта в памяти подтверждено и единственно.
@@ -205,7 +204,7 @@ compatibility: "Набор установлен в проект рядом с э
 Перед отчётом — прогнать `sh <dev>/scripts/review-lint.sh` в корне проекта (`<dev>` —
 каталог установленного скила `dev`; скрипт сам находит, где он установлен). Нарушения правятся здесь же по правилам гигиены
 (`references/review-template.md`, «Обновление набора», п. 5); понижение риска — только вопросом
-по каналу из `AGENTS.md`/`CLAUDE.md`. В отчёт — итог прогона дословно.
+по каналу из назначения или `AGENTS.md`/`CLAUDE.md`. В отчёт — итог прогона дословно.
 
 Отчёт: клиенты и что для каждого создано или слито (агенты, конфиги памяти, файл правил);
 при обновлении — какие проектные дополнения в скилах найдены и куда перенесены; что пропущено

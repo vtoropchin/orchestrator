@@ -30,6 +30,7 @@ AgentMemory MCP: memory_recall/get/save/update, для снятия зависи
 | Brief/design detail | Полная постановка, решения/критерии, доступные source refs | Один назначенный planner/dev-lead либо parent → исполнитель |
 | Result/evidence detail | Полный результат, manifest, проверки/ограничения | Автор → verifier/принятый следующий потребитель |
 | Verification detail | Полный независимый audit | Verifier → непосредственный потребитель/адресный спор |
+| Предложения в память (`memo_proposals`) | Строки будущих записей: kind, теги, summary, текст | Автор → verifier → parent сохраняет после acceptance |
 | Compact receipt | Краткая схема receipt с phase/Git refs/OIDs, без evidence | Verifier → parent |
 | Git baseline/intent/delivery detail | Полные initial status/index/tree, commands/OIDs/inventory/reconcile | Один scout/Git-owner на ID → verifier |
 | History index | Refs закрытых control/версий, не evidence | Parent → адресное восстановление |

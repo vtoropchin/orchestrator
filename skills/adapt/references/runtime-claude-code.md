@@ -22,13 +22,7 @@
 
 ## Память `memo`
 
-Шаблоны — `assets/claude-code/`:
-
-- `mcp.json` → слить в `.mcp.json` проекта: ключ `mcpServers.memo`, другие серверы не трогать;
-  `env.DEEPSEEK_API_KEY` оставить в форме `${DEEPSEEK_API_KEY:-}` — значение memo берёт из
-  `.env` рядом с `agentmemory.toml`.
-- `settings.json` → слить хуки в `.claude/settings.json`: для событий `SessionStart` и
-  `UserPromptSubmit` добавить хук `memo` в массив `hooks[<событие>]`, не заменяя существующие;
-  хук с подстрокой `memo` и тем же `-event` уже есть — пропустить.
-- `<путь-к-memo>` заменить фактическим путём из `command -v memo`.
-- `${CLAUDE_PROJECT_DIR:-.}` оставить как есть: Claude Code раскрывает его в корень проекта.
+`memo init -agent claude …` (`wiring.md`, §4) кладёт `.mcp.json` с сервером `memo`, скилы в
+`.claude/skills/memo*` и хуки в `.claude/settings.json`. Если установщик набора сделал
+`.claude/skills` симлинками на `.agents/skills`, скилы `memo` окажутся в `.claude/skills/`
+отдельными каталогами — это нормально.

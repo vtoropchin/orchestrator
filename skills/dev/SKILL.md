@@ -1,11 +1,12 @@
 ---
 name: dev
-description: "Orchestrates the full development cycle under Clean Architecture discipline, from the first request to a finished, reviewed, documented change, in any coding agent (Claude Code, DeepSeek Harness, Hermes and others). Calibrates rigor by task size (T0–T3) and change risk from REVIEW.md paths, then runs understand → design → test-first implement (inside out) → verify with evidence → bug review (fresh context when possible; level set by size and risk, security review on security paths) → architecture review → close, running the boundary-architect, use-case-designer, test-architect, architecture-reviewer, dependency-auditor and legacy-decoupler roles at the right gates (as subagents when the client has them). Records decisions in memo, moves repeated findings into REVIEW.md; in delegation mode `implementer` subagents write the code. Use at the start of any non-trivial feature, refactoring or new project, and whenever asked to \"build/implement/add\" something end to end."
+description: "Orchestrates the full development cycle under Clean Architecture discipline, from the first request to a finished, reviewed, documented change, in any coding agent. Calibrates rigor by task size (T0–T3) and change risk from REVIEW.md paths, then runs understand → design → test-first implement (inside out) → verify with evidence → bug review (fresh context when possible; level set by size and risk, security review on security paths) → architecture review → close, running the boundary-architect, use-case-designer, test-architect, architecture-reviewer, dependency-auditor and legacy-decoupler roles at the right gates (as subagents when the client has them). Records decisions in memo, moves repeated findings into REVIEW.md; in delegation mode `implementer` subagents write the code. Under orchestrate it runs in the dev-lead child, never in the coordinator. Use at the start of any non-trivial feature, refactoring or new project, and whenever asked to \"build/implement/add\" something end to end."
 ---
 
 # `dev` — оркестратор цикла разработки
 
-Точка входа для любой работы над кодом. Скил решает **три вещи**: сколько дисциплины нужно
+Точка входа для работы над кодом в одной сессии (при `orchestrate` — в сессии dev-lead, см.
+ниже). Скил решает **три вещи**: сколько дисциплины нужно
 этой задаче, в каком порядке идут фазы, и что должно быть истинно, чтобы перейти к следующей.
 
 Детальные чек-листы фаз и ветвления: `references/playbook.md`. Шаблон и гейт технического
@@ -30,6 +31,26 @@ description: "Orchestrates the full development cycle under Clean Architecture d
   позже и держатся за границей.
 - **Дисциплина пропорциональна ставке.** Полная церемония на однострочной правке — такая же
   ошибка, как её отсутствие в новой подсистеме.
+
+## Если работа идёт через `orchestrate`
+
+Когда в проекте работа начата скилом `orchestrate`, цикл `dev` ведёт назначенный ему
+**dev-lead** — дочерняя сессия или субагент с brief v3 (обычно по скилу `session-worker`).
+Сессия-координатор `orchestrate` сама цикл `dev` не выполняет: она назначает, разрешает и
+принимает. Если вы и есть координатор, этот скил здесь не применяется.
+
+В сессии dev-lead фазы и гейты ниже действуют полностью, но **назначение старше правил этого
+скила** там, где они расходятся:
+
+| Что в `dev` | Как при назначении |
+|---|---|
+| «Сообщить пользователю», вопросы, отчёт | только parent, каналом назначения (`question`, итоговая сводка ≤2000 символов); полный отчёт `dev` — в назначенный result detail. Строка «уровень Tn, риск X» — в `ready` |
+| Запись в память: решения, долг, задачи Pre-existing, эпизоды находок, архив правил | **не создавать записей самому**: каждую будущую запись — одной строкой с `kind`/тегами в назначенный detail предложений для памяти (`memo_proposals`); сохраняет их parent после приёмки. Recall разрешён |
+| Роли и `implementer` как субагенты | только в пределах `bounded_subagents` brief и слотов parent; нет разрешения или клиент не даёт вложенный запуск — роли выполняются в своём контексте по `references/runtime.md`. Роли с `memo: read-write` при этом только читают память, решения возвращают в отчёте |
+| Правка `AGENTS.md`/`CLAUDE.md`, `REVIEW.md`, создание архитектурного теста | только пути из `write_paths` brief; иначе — предложение правки в detail |
+| Коммиты, ветки, push | не делаются в файловой фазе; Git — только отдельной фазой Git-owner по `git-grant` |
+| Гейты 4–5б («проверено», ревью) | обязательны, но это проверка автора: приёмку даёт только независимый verifier `orchestrate` |
+| Возврат на фазу 2, перекалибровка, смена объёма | не меняют цель и критерии назначения: если нужно — `question`/блокер parent |
 
 ## Фаза 0. Калибровка (всегда, занимает минуту)
 
@@ -71,7 +92,7 @@ description: "Orchestrates the full development cycle under Clean Architecture d
 высокого риска, а никакой путь в каталогах инструментов агента (`.claude/`, `.agents/` и т. п.)
 не бывает низким риском. **Понижать риск** — удалять путь из «Высокий риск» или «Безопасность», переносить
 путь в «Низкий риск» — можно только с согласия того, кто задаёт правила ревью: вопрос по
-каналу из `AGENTS.md`/`CLAUDE.md` проекта (например, в режиме исполнителя — оркестратору), до правки.
+каналу из назначения `orchestrate` или `AGENTS.md`/`CLAUDE.md` проекта (например, в режиме исполнителя — оркестратору), до правки.
 Повышать — можно сразу.
 
 Риск не меняет набор фаз — он задаёт ревью на баги на фазе 5а и строки отчёта на фазе 6:
@@ -151,7 +172,7 @@ description: "Orchestrates the full development cycle under Clean Architecture d
 4. Определить, легаси это или чистая область. Если правила погребены в контроллерах/ORM/SQL и
    изменение требует их тронуть → роль `legacy-decoupler`, дальше работа идёт по его плану.
 5. Сформулировать 1–3 вопроса, только если разные ответы дают **материально разную работу**.
-   Иначе — записать допущение и продолжать. Если `AGENTS.md`/`CLAUDE.md` проекта задаёт другой канал для
+   Иначе — записать допущение и продолжать. Если назначение `orchestrate` или `AGENTS.md`/`CLAUDE.md` проекта задаёт другой канал для
    вопросов и отчёта (например, режим исполнителя оркестратора), вопросы и отчёт идут туда.
 
 **Гейт 1:** сформулирован сценарий «ввод → обработка → вывод» без слов о UI, HTTP и таблицах.
@@ -280,7 +301,7 @@ description: "Orchestrates the full development cycle under Clean Architecture d
 - повторное ревью — **только по новому diff**: целью передаются файлы правок; выданное в
   прошлом круге не повторяется и заново не обсуждается;
 - **не больше двух кругов правок.** Important после второго круга означает, что не понята
-  задача, а не код: возврат на фазу 2. Если `AGENTS.md`/`CLAUDE.md` проекта задаёт другой канал для
+  задача, а не код: возврат на фазу 2. Если назначение `orchestrate` или `AGENTS.md`/`CLAUDE.md` проекта задаёт другой канал для
   вопросов (например, режим исполнителя оркестратора) — вместо возврата вопрос туда.
 
 В режиме делегирования Important правит тот же агент `implementer`, который писал шаг, —
@@ -345,7 +366,7 @@ Pre-existing перечислены, у Pre-existing есть задачи в п
    Откат: <как откатить: revert коммита, обратная миграция, флаг, ручной шаг>
    ```
    Пропущенное ревью так и пишется: «Ревью: на баги пропущено (T0, риск средний); безопасность — не требовалось». Если
-   `AGENTS.md`/`CLAUDE.md` проекта задаёт другой канал для отчёта (например, режим исполнителя
+   назначение `orchestrate` или `AGENTS.md`/`CLAUDE.md` проекта задаёт другой канал для отчёта (например, режим исполнителя
    оркестратора), отчёт идёт туда.
 5. Не расширять объём работы за пределы запроса. Замеченное постороннее — назвать, не делать.
 
@@ -356,7 +377,7 @@ Pre-existing перечислены, у Pre-existing есть задачи в п
   старый план до нового требования.
 - Если задача блокирована решением, которое вправе принять только пользователь (выбор
   технологии, компромисс по срокам, поведение в спорном сценарии) — сформулируйте вопрос,
-  выполните всё, что от него не зависит, и не останавливайте работу целиком. Если `AGENTS.md`/`CLAUDE.md`
+  выполните всё, что от него не зависит, и не останавливайте работу целиком. Если назначение `orchestrate` или `AGENTS.md`/`CLAUDE.md`
   проекта задаёт другой канал для вопросов (например, режим исполнителя оркестратора), вопрос
   идёт туда.
 

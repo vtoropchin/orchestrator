@@ -27,7 +27,6 @@ Architecture*, ставится в проект целиком (см. [ниже]
 | [testable-architecture](skills/testable-architecture/SKILL.md) | Тестируемость как свойство архитектуры, «Скромный объект» |
 | [code-organization](skills/code-organization/SKILL.md) | Упаковка, видимость, принуждение компилятором |
 | [details-and-deferral](skills/details-and-deferral/SKILL.md) | БД, веб, фреймворки как детали; `Main` |
-| [memo](skills/memo/SKILL.md), [memo-bootstrap](skills/memo-bootstrap/SKILL.md) | Протокол долговременной памяти проекта через MCP memo и её первичное наполнение |
 
 Универсальны по типу работы (разработка, исследование, документация) и по клиенту агента:
 Claude Code, DeepSeek Harness, Hermes Agent и другие клиенты с поддержкой Agent Skills.
@@ -75,14 +74,15 @@ Desktop собраны в отдельном [адаптере](skills/orchestra
    В диалоге CLI выбрать все скилы набора (`adapt`, `dev`, `clean-architecture`,
    `solid-design`, `component-structure`, `architectural-boundaries`,
    `use-cases-and-entities`, `testable-architecture`, `code-organization`,
-   `details-and-deferral`, `memo`, `memo-bootstrap`), агентов, которыми пользуетесь
+   `details-and-deferral`), агентов, которыми пользуетесь
    (например, Claude Code, Hermes Agent, Universal для `.agents/skills` — его читает
    DeepSeek Harness), и проектную область.
 2. Открыть проект в своём агенте и запустить скил `adapt` (`/adapt` или «адаптируй набор
    чистой архитектуры под этот проект»). Он изучит стек, покажет план и после согласия:
    создаст именованных агентов из ролей `dev` там, где у клиента есть адаптер (сейчас —
-   Claude Code: `.claude/agents/`), подключит память `memo`, если она установлена (без
-   авторских путей, с подтверждённым именем проекта), запишет стабильные правила в
+   Claude Code: `.claude/agents/`), подключит память `memo` командой `memo init`, если
+   [agent-memory](https://github.com/vtoropchin/agent-memory) установлен (она же ставит скилы
+   `memo` и `memo-bootstrap` с именем проекта), запишет стабильные правила в
    `AGENTS.md`/`CLAUDE.md`, создаст каркас `REVIEW.md` и проверку правила зависимостей.
 
 После этого задачи начинаются со скила `dev`. Обновление — снова `make install PROJECT=…`
@@ -115,11 +115,10 @@ skills/                         распространяемые скилы: п�
     SKILL.md                    роль, ready/grant, выполнение, ограничения
     references/                 полный контракт назначения и отчёта
   adapt/                        адаптация набора «Чистая архитектура» под проект и клиентов
-    assets/                     шаблоны agentmemory.toml и конфигов memo для Claude Code
   dev/                          оркестратор цикла разработки
     references/agents/          нейтральные роли агентов набора
     scripts/                    review-lint и его тест
-  clean-architecture/ …         скилы дисциплины, memo и memo-bootstrap
+  clean-architecture/ …         скилы дисциплины
 templates/skill/SKILL.md.template  шаблон для авторинга, не готовый скил
 scripts/check-skills.sh          проверка метаданных публичного каталога
 .claude/skills/                  служебные скилы разработки, включая /dev и /adapt
