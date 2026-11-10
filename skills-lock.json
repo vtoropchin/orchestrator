@@ -4,7 +4,7 @@
     "adapt": {
       "source": "./skills",
       "sourceType": "local",
-      "computedHash": "983573078a45cf6b50c6936fc675a12ccdf409f9eace63b3a2d8f359c6dae6df"
+      "computedHash": "7b9d009f07e5aeafb47db2738afa3135e66d78b8e1030303cece44c766b8645d"
     },
     "architectural-boundaries": {
       "source": "./skills",
