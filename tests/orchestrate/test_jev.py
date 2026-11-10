@@ -213,6 +213,40 @@ class CalibrateTable(Tmp):
         self.assertEqual(out["model"], "jev-1.14.0")
 
 
+class CalibrateEffort(Tmp):
+    def effort(self, state, **kw):
+        code, out, raw = self.calibrate(state, calibrate_response(**kw))
+        self.assertEqual(code, 0, raw)
+        return out["profile"], out["effort"]
+
+    def test_scout_is_low(self):
+        state = dict(BASE_STATE, role="scout", writes_code=False)
+        code, out, _ = self.calibrate(state, calibrate_response())
+        self.assertEqual(out["effort"], "low")
+
+    def test_small_clear_code_is_medium(self):
+        self.assertEqual(self.effort(BASE_STATE), ("coding", "medium"))
+
+    def test_large_code_worker_is_high(self):
+        self.assertEqual(self.effort(BASE_STATE, size=(0.1, 0.3, 0.5, 0.1)), ("coding", "high"))
+
+    def test_verifier_of_code_is_high(self):
+        self.assertEqual(self.effort(dict(BASE_STATE, role="verifier")), ("coding", "high"))
+
+    def test_top_is_high(self):
+        state = dict(BASE_STATE, role="dev-lead")
+        self.assertEqual(self.effort(state, size=(0.2, 0.4, 0.3, 0.1)), ("top", "high"))
+
+    def test_top_large_and_risky_is_max(self):
+        state = dict(BASE_STATE, role="dev-lead")
+        self.assertEqual(self.effort(state, size=(0.0, 0.1, 0.3, 0.6), secrets=0.9),
+                         ("top", "max"))
+
+    def test_small_read_only_worker_is_low(self):
+        state = dict(BASE_STATE, writes_code=False, read_only=True)
+        self.assertEqual(self.effort(state), ("light", "low"))
+
+
 class CalibrateInput(Tmp):
     def test_missing_role_is_input_error(self):
         state = {k: v for k, v in BASE_STATE.items() if k != "role"}
@@ -282,6 +316,51 @@ class RepairCause(Tmp):
     def test_uncertain_cause_is_parent_decision(self):
         code, out, _ = self.repair(self.STATE, repair_response("reasoning_error", 0.5))
         self.assertEqual(out["action"], "parent_decides")
+
+    def test_first_reasoning_failure_raises_effort_on_same_model(self):
+        state = dict(self.STATE, failed_repairs=1, current_effort="medium", effort_value_count=3)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual(out["action"], "raise_effort")
+        self.assertEqual(out["target_effort"], "high")
+        self.assertIsNone(out["target_profile"])
+
+    def test_effort_at_maximum_is_parent_decision_after_one_failure(self):
+        state = dict(self.STATE, failed_repairs=1, current_effort="high", effort_value_count=3)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual(out["action"], "parent_decides")
+
+    def test_second_failure_escalates_model_even_if_effort_left(self):
+        state = dict(self.STATE, current_effort="medium", effort_value_count=4)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual(out["action"], "escalate")
+        self.assertEqual(out["target_profile"], "top")
+
+    def test_bad_effort_value_is_input_error(self):
+        state = dict(self.STATE, current_effort="turbo", effort_value_count=3)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual(code, 2)
+        for bad in (0, True, "3"):
+            state = dict(self.STATE, current_effort="low", effort_value_count=bad)
+            code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+            self.assertEqual(code, 2, bad)
+
+    def test_raise_skips_levels_with_same_client_value(self):
+        # n=2: low и medium -> v[0], high и max -> v[1]; с low поднимаемся сразу до high.
+        state = dict(self.STATE, failed_repairs=1, current_effort="low", effort_value_count=2)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual(out["target_effort"], "high")
+
+    def test_no_raise_when_client_value_cannot_grow(self):
+        # n=3: high и max -> v[2]; поднимать некуда.
+        state = dict(self.STATE, failed_repairs=1, current_effort="high", effort_value_count=3)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual(out["action"], "parent_decides")
+
+    def test_light_is_not_raised_but_left_to_profile_rule(self):
+        state = dict(self.STATE, failed_repairs=1, current_profile="light",
+                     current_effort="low", effort_value_count=4)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertNotEqual(out["action"], "raise_effort")
 
     def test_top_profile_has_nowhere_to_escalate(self):
         state = dict(self.STATE, current_profile="top")

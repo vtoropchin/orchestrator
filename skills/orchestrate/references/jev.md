@@ -59,12 +59,12 @@ jev:
 |---|---|
 | `off` | Ваша калибровка, как в [выборе модели](model-selection.md) |
 | `shadow` | Ваша калибровка; ответ Jev записывается рядом для сравнения |
-| `apply` | Профиль из `calibrate`; вы можете только **поднять** его, указав причину. При `selection` ≠ `chosen` `calibrate` не вызывается, профиль — по таблицам |
+| `apply` | Профиль и уровень усилия из `calibrate`; вы можете только **поднять** их, указав причину. Выбирать нечего — `calibrate` не вызывается, всё по таблицам |
 
 ## Калибровка назначения
 
-Только при `selection: chosen` в каталоге: при `inherit` и `single_candidate` выбирать не из
-чего, и вызов лишь тратит баланс. Перед intent назначения подготовьте state и вызовите
+Только когда есть что выбирать: `selection: chosen` или `effort_selection: chosen`.
+Нельзя выбрать ни модель, ни уровень усилия — вызов лишь тратит баланс. Перед intent назначения подготовьте state и вызовите
 `python3 <пакет>/scripts/jev.py calibrate --state <файл|->` (state можно подать в stdin):
 
 ```json
@@ -92,14 +92,14 @@ jev:
 Ответ (код 0):
 
 ```json
-{"profile": "coding", "rules": ["writes_code_floor", "small_and_clear"],
+{"profile": "coding", "effort": "medium", "rules": ["writes_code_floor", "small_and_clear"],
  "judgments": {"size": {"score": 0.6, "p_large": 0.05},
                "secrets": {"p": 0.04, "verdict": "no"}, "...": "..."},
  "model": "jev-1.14.0", "usage": {"input_tokens": 120, "output_tokens": 0}}
 ```
 
 Для `scout` Jev не вызывается и ключ не нужен; ответ —
-`{"profile": "light", "rules": ["scout_facts_only"], "judgments": null, "model": null, "usage": null}`.
+`{"profile": "light", "effort": "low", "rules": ["scout_facts_only"], "judgments": null, "model": null, "usage": null}`.
 
 Таблица (в скрипте; пороги вероятности «да» ≥ 0.7, «нет» ≤ 0.3, между — «неясно»):
 
@@ -118,7 +118,9 @@ jev:
 Решающие роли — planner, dev-lead, integrator, verifier. Итог — максимум сработавших строк. Пороги качества из [выбора модели](model-selection.md)
 (код не ниже `coding`, verifier ≥ автора, понижения нет) действуют поверх: результат,
 который их нарушает, не применяйте. Профиль затем превращается в конкретную модель по
-каталогу (`model-selection.md`, «Каталог моделей»).
+каталогу (`model-selection.md`, «Каталог моделей»), а `effort` — в значение клиента по
+разделу «Уровень усилия» там же (`light` → `low`; `coding` → `medium`, при крупной/неясной
+задаче, риске, verifier/integrator — `high`; `top` → `high`, T3 с риском — `max`).
 
 Запишите в control назначения рядом с `model`:
 
@@ -137,16 +139,18 @@ jev:
 
 ```json
 {"failure_report": "<краткий отчёт child о неудаче>", "check_output": "<хвост вывода проверки>",
- "failed_repairs": 2, "current_profile": "coding"}
+ "failed_repairs": 1, "current_profile": "coding",
+ "current_effort": "medium", "effort_value_count": 3}
 ```
 
 | `action` | Что делать |
 |---|---|
+| `raise_effort` | Ошибка рассуждения (p ≥ 0.7) после первого repair на `coding`/`top`, и у клиента есть значение уровня выше текущего: новая попытка на той же модели с `target_effort` (первый уровень, дающий другое значение клиента). `effort_value_count` — число значений в `effort_values` модели; без него и `current_effort` не выдаётся |
 | `escalate` | Причина — ошибка рассуждения (p ≥ 0.7) после двух repair: новая стратегия на `target_profile` |
 | `blocker` | Среда, доступ или нехватка данных (p ≥ 0.7): эскалация модели не поможет, это блокер |
 | `parent_decides` | Таблица не решает: правила «Эскалация вместо дорогого старта» как без Jev |
 
-В `shadow` ответ только записывается; в `apply` `blocker` и `escalate` применяются.
+В `shadow` ответ только записывается; в `apply` `blocker`, `raise_effort` и `escalate` применяются.
 
 ## Ошибки
 
