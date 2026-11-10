@@ -242,6 +242,14 @@ class CalibrateEffort(Tmp):
         self.assertEqual(self.effort(state, size=(0.0, 0.1, 0.3, 0.6), secrets=0.9),
                          ("top", "max"))
 
+    def test_ambiguity_does_not_raise_effort_of_executor(self):
+        # Неоднозначность — забота постановщика: исполнитель спрашивает, а не думает дольше.
+        self.assertEqual(self.effort(BASE_STATE, ambiguous=0.43), ("coding", "medium"))
+
+    def test_ambiguity_raises_effort_of_deciding_role(self):
+        state = dict(BASE_STATE, role="planner", writes_code=False)
+        self.assertEqual(self.effort(state, ambiguous=0.43)[1], "high")
+
     def test_small_read_only_worker_is_low(self):
         state = dict(BASE_STATE, writes_code=False, read_only=True)
         self.assertEqual(self.effort(state), ("light", "low"))
@@ -457,6 +465,15 @@ class Http(Tmp):
         self.assertEqual(body["questions"]["size"]["type"], "score")
         self.assertEqual(body["questions"]["secrets"]["type"], "noul")
         self.assertNotIn(KEY, raw)
+
+    def test_migration_question_excludes_source_and_docs(self):
+        fake = self.api([(200, calibrate_response())])
+        self.write(".env", "JEV_AI_API_KEY=%s\nJEV_AI_BASE_URL=%s\n" % (KEY, fake.url))
+        s = self.write("state.json", BASE_STATE)
+        run(["calibrate", "--state", str(s)], self.dir)
+        migration = json.loads(fake.requests[0]["body"])["questions"]["migration"]
+        self.assertNotIn("saved files", json.dumps(migration))
+        self.assertIn("documentation", migration["criteria"]["false"])
 
     def test_retries_server_error_then_succeeds(self):
         fake = self.api([(503, {"error": "busy"}), (200, MODELS)])
