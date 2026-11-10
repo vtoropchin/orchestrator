@@ -128,7 +128,7 @@ BLOCKER_CAUSES = ("environment", "permissions", "missing_data")
 
 def parse_dotenv(path):
     values = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -171,21 +171,20 @@ def load_config(project):
         except (OSError, UnicodeDecodeError) as exc:
             raise Fail(3, "bad_config", "cannot read %s: %s" % (env_file, type(exc).__name__))
 
-    def lookup(name):
-        if os.environ.get(name):
-            return os.environ[name], "env"
-        if dotenv.get(name):
-            return dotenv[name], ".env"
-        return None, None
+    sources = {"env": os.environ, ".env": dotenv}
 
     for provider, names in PROVIDERS.items():
-        key, source = lookup(names["key"])
-        if not key:
+        source = next((s for s in ("env", ".env") if sources[s].get(names["key"])), None)
+        if not source:
             continue
-        base = (lookup(names["base"])[0] or names["default_base"]).rstrip("/")
-        model = lookup(names["model"])[0] or DEFAULT_MODEL
+        # Адрес и модель — только из того же источника, что и ключ: иначе ключ
+        # из окружения ушёл бы на адрес, записанный в .env чужого репозитория.
+        values = sources[source]
+        key = values[names["key"]]
+        base = (values.get(names["base"]) or names["default_base"]).rstrip("/")
+        model = values.get(names["model"]) or DEFAULT_MODEL
         parsed = urllib.parse.urlparse(base)
-        local = parsed.hostname in ("127.0.0.1", "localhost", "::1")
+        local = parsed.hostname in LOCAL_HOSTS
         if parsed.scheme != "https" and not (parsed.scheme == "http" and local):
             raise Fail(3, "bad_config",
                        "%s must be https:// (http:// only for localhost)" % names["base"])
@@ -222,6 +221,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 OPENER = urllib.request.build_opener(NoRedirect)
+# Локальный http:// — мимо прокси: иначе ключ ушёл бы прокси открытым текстом.
+LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 
 def call(config, method, path, payload=None):
@@ -237,7 +239,8 @@ def call(config, method, path, payload=None):
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
         retry_after = None
         try:
-            with OPENER.open(request, timeout=TIMEOUT_S) as response:
+            opener = LOCAL_OPENER if config.get("host") in LOCAL_HOSTS else OPENER
+            with opener.open(request, timeout=TIMEOUT_S) as response:
                 body = response.read().decode("utf-8")
             try:
                 return json.loads(body)

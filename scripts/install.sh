@@ -24,6 +24,8 @@ if [ ! -d "$skills_dir" ]; then
   printf 'make install: нет каталога скилов %s; ничего не установлено.\n' "$skills_dir" >&2
   exit 1
 fi
+# Абсолютный путь: после cd в проект относительный указывал бы на код проекта.
+skills_dir=$(cd -- "$skills_dir" && pwd -P)
 
 while :; do
   printf 'Укажите рабочую директорию [%s]: ' "$default_dir"

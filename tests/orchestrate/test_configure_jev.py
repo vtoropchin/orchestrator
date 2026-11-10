@@ -65,6 +65,31 @@ class ConfigureJev(unittest.TestCase):
         self.assertIn("JEV_AI_BASE_URL=https://api.typesafe.ai", lines)
         self.assertIn("JEV_AI_MODEL=jev-1.14.0", lines)
 
+    def test_binary_or_non_utf8_lines_are_kept(self):
+        original = b"A=1\n# caf\xe9\nB=\x00x\nJEV_AI_MODEL=old\n"
+        self.env_file.write_bytes(original)
+        code, out = self.run_script(["y", "", "", KEY])
+        self.assertEqual(code, 0, out)
+        data = self.env_file.read_bytes()
+        for line in (b"A=1\n", b"# caf\xe9\n", b"B=\x00x\n"):
+            self.assertIn(line, data)
+        self.assertNotIn(b"JEV_AI_MODEL=old", data)
+
+    def test_symlinked_gitignore_is_not_written(self):
+        self.git_init()
+        outside = Path(self._tmp.name + "-outside")
+        outside.write_text("keep\n")
+        self.addCleanup(outside.unlink)
+        (self.dir / ".gitignore").symlink_to(outside)
+        code, out = self.run_script(["y", "", "", KEY, "y"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(outside.read_text(), "keep\n")
+
+    def test_env_directory_is_refused(self):
+        self.env_file.mkdir()
+        code, out = self.run_script(["y", "", "", KEY])
+        self.assertEqual(list(self.env_file.iterdir()), [])
+
     def test_existing_key_kept_when_replacement_declined(self):
         original = "JEV_AI_API_KEY=old\n"
         self.env_file.write_text(original)

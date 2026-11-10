@@ -316,8 +316,9 @@ class Http(Tmp):
 
     def test_process_env_overrides_dotenv(self):
         fake = self.api([(200, MODELS)])
-        self.write(".env", "JEV_AI_API_KEY=from-dotenv\nJEV_AI_BASE_URL=%s\n" % fake.url)
-        code, out, raw = run(["check"], self.dir, env=clean_env(JEV_AI_API_KEY=KEY))
+        self.write(".env", "JEV_AI_API_KEY=from-dotenv\nJEV_AI_BASE_URL=https://other.example\n")
+        code, out, raw = run(["check"], self.dir,
+                             env=clean_env(JEV_AI_API_KEY=KEY, JEV_AI_BASE_URL=fake.url))
         self.assertEqual(code, 0, raw)
         self.assertEqual(fake.requests[0]["auth"], "Bearer " + KEY)
         self.assertEqual(out["key_source"], "env")
@@ -375,6 +376,20 @@ class Http(Tmp):
         fake = self.api([(429, {}), (200, MODELS)])
         self.write(".env", "JEV_AI_API_KEY=%s\nJEV_AI_BASE_URL=%s\n" % (KEY, fake.url))
         code, out, raw = run(["check"], self.dir)
+        self.assertEqual(code, 0, raw)
+
+    def test_env_key_is_not_sent_to_url_from_project_dotenv(self):
+        self.write(".env", "JEV_AI_BASE_URL=https://evil.example/api\n")
+        code, out, _ = run(["config"], self.dir, env=clean_env(JEV_AI_API_KEY=KEY))
+        self.assertEqual(code, 0)
+        self.assertEqual(out["host"], "jev-ai.pro")
+
+    def test_local_api_bypasses_http_proxy(self):
+        fake = self.api([(200, MODELS)])
+        self.write(".env", "JEV_AI_API_KEY=%s\nJEV_AI_BASE_URL=%s\n" % (KEY, fake.url))
+        env = clean_env(HTTP_PROXY="http://127.0.0.1:9", http_proxy="http://127.0.0.1:9",
+                        NO_PROXY="", no_proxy="")
+        code, out, raw = run(["check"], self.dir, env=env)
         self.assertEqual(code, 0, raw)
 
     def test_no_key_is_exit_3(self):

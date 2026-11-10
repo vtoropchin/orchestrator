@@ -62,8 +62,12 @@ if ! yes_answer "$reply"; then
   exit 0
 fi
 
-if [ -L "$env_file" ]; then
-  say "make install: $env_file — символическая ссылка; запишите ключ в исходный файл сами." >&2
+if [ -L "$env_file" ] || { [ -e "$env_file" ] && [ ! -f "$env_file" ]; }; then
+  say "make install: $env_file — не обычный файл (ссылка или каталог); запишите ключ сами." >&2
+  exit 0
+fi
+if [ -e "$env_file" ] && [ ! -r "$env_file" ]; then
+  say "make install: $env_file нельзя прочитать; .env не изменён." >&2
   exit 0
 fi
 in_git=0
@@ -123,8 +127,14 @@ if [ "${skip_write:-0}" -eq 0 ]; then
   # Новый файл рядом с .env: mktemp создаёт его с правами 0600, затем атомарная замена.
   tmp=$(mktemp "$work_dir/.env.jev.XXXXXX")
   if [ -f "$env_file" ]; then
-    grep -Ev '^[[:space:]]*(export[[:space:]]+)?JEV_AI_(API_KEY|BASE_URL|MODEL)[[:space:]]*=' \
-      "$env_file" >"$tmp" || :
+    # -a и LC_ALL=C: строки с NUL и не-UTF-8 байтами сохраняются как есть.
+    rc=0
+    LC_ALL=C grep -a -Ev '^[[:space:]]*(export[[:space:]]+)?JEV_AI_(API_KEY|BASE_URL|MODEL)[[:space:]]*=' \
+      "$env_file" >"$tmp" || rc=$?
+    if [ "$rc" -gt 1 ]; then
+      say "make install: не удалось прочитать $env_file; .env не изменён." >&2
+      exit 0
+    fi
     end_with_newline "$tmp"
   fi
   {
@@ -142,8 +152,10 @@ fi
 
 if [ "$in_git" -eq 1 ] && ! git -C "$work_dir" check-ignore -q -- .env 2>/dev/null; then
   ask "Файл .env не в .gitignore проекта. Добавить строку .env в $work_dir/.gitignore? (Y/n)" 'Y'
-  if yes_answer "$reply"; then
-    ignore=$work_dir/.gitignore
+  ignore=$work_dir/.gitignore
+  if [ -L "$ignore" ] || { [ -e "$ignore" ] && [ ! -f "$ignore" ]; }; then
+    say "make install: $ignore — не обычный файл; добавьте строку .env сами." >&2
+  elif yes_answer "$reply"; then
     end_with_newline "$ignore"
     printf '%s\n' '.env' >>"$ignore"
     say 'make install: .env добавлен в .gitignore.'
