@@ -96,9 +96,11 @@ CALIBRATE_QUESTIONS = {
         "Requests, uploads, or third-party data are parsed or validated differently",
         "Only internal data that the system itself produced is involved"),
     "migration": noul_q(
-        "Does `task` change stored data or the schema of stored data?",
-        "Existing records, tables, or saved files must be changed or converted",
-        "Stored data and its format stay as they are"),
+        "Does `task` change data the application stores while it runs, or its schema?",
+        "Existing database records, user files, or caches that the running application "
+        "keeps must be changed or converted",
+        "The data the application keeps stays as it is; editing source code or "
+        "documentation files is not a change to stored data"),
     "public_contract": noul_q(
         "Does `task` change a public API, file format, or protocol that others depend on?",
         "Callers, clients, or users outside the changed code must adapt",
@@ -396,7 +398,9 @@ def decide_effort(profile, facts, judgments, rules):
     if profile == "top":
         p_t3 = judgments["size"].get("p_t3", 0.0)
         return "max" if risky and p_t3 >= 0.5 else "high"
-    if large or open_ or risky or facts["role"] in ("verifier", "integrator"):
+    # Неоднозначность поднимает усилие только решающим ролям: исполнитель задаёт вопрос.
+    if large or risky or facts["role"] in ("verifier", "integrator") or (
+            open_ and facts["role"] in DECIDING_ROLES):
         return "high"
     return "medium"
 
