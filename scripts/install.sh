@@ -1,7 +1,8 @@
 #!/bin/sh
 # Интерактивный запуск skills CLI для make install.
 # Спрашивает рабочую директорию и запускает CLI из неё: проектная установка
-# попадает в выбранный каталог. Собственного установщика здесь нет.
+# попадает в выбранный каталог. После установки сообщает, что получил
+# DeepSeek Harness (dsh). Собственного установщика здесь нет.
 #
 # Использование: sh scripts/install.sh <каталог skills/> <директория по умолчанию>
 set -eu
@@ -42,5 +43,30 @@ while :; do
 done
 
 printf 'make install: рабочая директория %s, источник %s\n' "$work_dir" "$skills_dir"
+# DeepSeek Harness (dsh) нет в зашитом списке агентов skills CLI, но он читает
+# .agents/skills проекта — это секция Universal, которую CLI ставит всегда.
+printf '%s\n' \
+  'make install: DeepSeek Harness (dsh) в списке CLI отдельно не показан: он читает' \
+  '  .agents/skills — секция «Universal (.agents/skills)», она устанавливается всегда.' \
+  '  Для dsh выберите проектную область (Project), а не глобальную.'
 cd -- "$work_dir"
-exec env -u AI_AGENT -u CLAUDECODE -u CLAUDE_CODE DISABLE_TELEMETRY=1 npx skills@1.7.6 add "$skills_dir"
+status=0
+env -u AI_AGENT -u CLAUDECODE -u CLAUDE_CODE DISABLE_TELEMETRY=1 npx skills@1.7.6 add "$skills_dir" || status=$?
+[ "$status" -eq 0 ] || exit "$status"
+
+# Итог для dsh: какие скилы источника лежат в .agents/skills выбранного проекта.
+found=0
+total=0
+for skill in "$skills_dir"/*/; do
+  [ -f "${skill}SKILL.md" ] || continue
+  total=$((total + 1))
+  name=$(basename -- "$skill")
+  [ -f "$work_dir/.agents/skills/$name/SKILL.md" ] && found=$((found + 1))
+done
+if [ "$found" -gt 0 ]; then
+  printf 'make install: DeepSeek Harness (dsh): %s из %s скилов источника в %s/.agents/skills\n' \
+    "$found" "$total" "$work_dir"
+else
+  printf 'make install: DeepSeek Harness (dsh): в %s/.agents/skills нет скилов источника;\n  %s\n' \
+    "$work_dir" 'dsh их не увидит (установка отменена или выбрана глобальная область).'
+fi
