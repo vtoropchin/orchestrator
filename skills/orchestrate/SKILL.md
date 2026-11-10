@@ -330,6 +330,7 @@ accepted не означает done/релиз.
 | [Выбор модели](references/model-selection.md) | Перед intent каждого назначения, repair/сменой стратегии и resume |
 | [Jev](references/jev.md) | Шаг 1 (режим) и калибровка/эскалация, если `jev.mode` не `off` |
 | [Claude Code Desktop](references/runtime-claude-code-desktop.md) | Только в Desktop: имена инструментов сессий и ссылки на них |
+| [DeepSeek Harness](references/runtime-deepseek-harness.md) | Только в dsh: каталог моделей child и как включить их выбор |
 | [Bootstrap](references/worker-bootstrap.md) | Нет session-worker; передайте child bootstrap и контракт этого пакета, при недоступных путях — оба inline |
 | [Проверки](references/verification.md) | Проверяющий выбирает S/F/R сценарии |
 
