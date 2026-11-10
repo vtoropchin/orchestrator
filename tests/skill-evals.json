@@ -1,5 +1,5 @@
 {
-  "skill_name": "orchestration-v3",
+  "skill_name": "orchestration-v3 + clean-architecture-set",
   "evaluation_type": "F: simulated decisions, not real child sessions in any client",
   "evals": [
     {
@@ -74,6 +74,54 @@
         "fork_only is blocked, not a fork-based launch",
         "single is blocked with no_child_runtime",
         "single.may_use_other_agent_cli = false and may_run_all_roles_in_one_context = false"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "dev-standalone-no-subagents",
+      "skill": "dev",
+      "prompt": "Симуляция, ничего не меняй и не запускай субагентов. Ты — кодинг-агент в клиенте Agent Skills (не Claude Code): нет инструмента субагентов, нет встроенных команд code-review/security-review, нет MCP memo, модель сессии неизвестна. В проекте нет REVIEW.md. Пользователь: «добавь экспорт просроченных заказов для менеджера в CSV» (код — app/orders/service.py в проекте-потребителе (Python, app/orders/service.py; набор установлен skills CLI)). По тексту скила dev ответь JSON: {level, risk, execution_mode, phase2_how, bug_review_how, security_review, memo, report_review_line, claude_specific_tools_required: true|false, which}.",
+      "expected_output": "T2, риск средний, режим «сама», роли и ревью отдельным проходом в основном контексте без пропуска ревью, ревью безопасности нужно (выгрузка данных), решения в отчёт, без обязательных инструментов Claude Code.",
+      "files": [],
+      "assertions": [
+        "execution_mode = сама",
+        "bug review is performed (not skipped) as a separate pass in the main context, noted as without fresh context",
+        "security review is required because the diff exports data outward",
+        "decisions go to the report because memo is absent",
+        "claude_specific_tools_required = false"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "dev-lead-under-orchestrate",
+      "skill": "dev",
+      "prompt": "Симуляция, ничего не меняй и не запускай субагентов. Ты — dev-lead child по назначению orchestrate (brief v3, transport delegated, фаза exec, grant получен). Brief: write_paths = app/orders/**, tests/**; REVIEW.md и AGENTS.md в write_paths НЕТ; bounded_subagents = пул K=1; memo_proposals_ref = D-42; memo доступен. Задача T2 в проекте-потребителе (Python, app/orders/service.py; набор установлен skills CLI). По тексту скила dev ответь JSON: {who_gets_questions, report_where, decision_records: how recorded, pre_existing_tasks: how, roles_parallel_limit, review_md_repeated_finding: what you do, commit: what you do, diff_base_for_risk, acceptance_by}.",
+      "expected_output": "Вопросы и сводка — parent; полный отчёт — result detail; решения и задачи — строки в memo_proposals D-42, не save; не больше 1 субагента одновременно; REVIEW.md не правится, предложение в detail; коммит не делается (только Git-owner по git-grant); diff — свой manifest против baseline; приёмка — независимый verifier.",
+      "files": [],
+      "assertions": [
+        "questions go to parent, not to the user",
+        "decisions and Pre-existing tasks are written as rows in memo_proposals D-42, no direct memory_save",
+        "no more than 1 subagent at a time",
+        "REVIEW.md is not edited; change proposed in detail",
+        "no commit in the file phase; Git only via git-grant",
+        "diff for risk = own manifest vs captured baseline",
+        "acceptance by independent verifier, not by dev gates"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "adapt-in-installed-project",
+      "skill": "adapt",
+      "prompt": "Пробный прогон, ничего не записывай и не изменяй. Проект-потребитель: набор установлен skills CLI для claude-code, hermes-agent и universal (файлы в .agents/skills, симлинки в .claude/skills и .hermes/skills). Считай, что бинарь memo установлен (memo init поддерживает -agent claude|opencode|dsh), а Hermes используется. По тексту скила adapt выполни фазы 0–2 и ответь JSON: {mode, copies_or_edits_skill_files: true|false, rules_files, named_agents: {claude_code, hermes}, memory: {command_per_client, hermes}, review_md_dev_path, writes_before_approval: true|false}.",
+      "expected_output": "Режим первичной адаптации на месте; файлы скилов не копируются и не правятся; AGENTS.md + CLAUDE.md с @AGENTS.md; агенты .claude/agents только для Claude Code, для Hermes — нет; memo init -agent claude ... ; Hermes — MCP вручную по документации; путь .agents/skills/dev/**; записей до подтверждения нет.",
+      "files": [],
+      "assertions": [
+        "copies_or_edits_skill_files = false",
+        "rules block in AGENTS.md and CLAUDE.md imports it",
+        "named agents created for Claude Code in .claude/agents, not for Hermes",
+        "memory connected via memo init for claude, Hermes MCP manually per client docs",
+        "review_md_dev_path = .agents/skills/dev/**",
+        "writes_before_approval = false"
       ]
     }
   ]
