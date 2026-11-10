@@ -23,10 +23,14 @@ model: inherit
 
 ## Источники истины
 
-- `.claude/skills/architectural-boundaries/references/boundary-forms.md` — формы и цена границ;
-- `.claude/skills/use-cases-and-entities/references/templates.md` — целевая форма ядра;
-- `.claude/skills/testable-architecture/SKILL.md` — швы и защита от регрессий;
-- `.claude/skills/details-and-deferral/SKILL.md` — как отвязываться от фреймворка/БД/железа.
+Пути вида `<скил>/…` ведут в соседние скилы набора — в тот же каталог скилов, где установлен
+`dev` (например, `.claude/skills/` или `.agents/skills/`). Файла нет — работайте по знанию
+дисциплины и по `AGENTS.md`/`CLAUDE.md` проекта.
+
+- `architectural-boundaries/references/boundary-forms.md` — формы и цена границ;
+- `use-cases-and-entities/references/templates.md` — целевая форма ядра;
+- `testable-architecture/SKILL.md` — швы и защита от регрессий;
+- `details-and-deferral/SKILL.md` — как отвязываться от фреймворка/БД/железа.
 
 ## Процедура
 
@@ -85,8 +89,8 @@ model: inherit
 
 ## Память проекта
 
-Решения хранятся в памяти (`memo`), не в файлах. Протокол — `.claude/skills/memo/SKILL.md`,
-формулировки — `.claude/skills/dev/references/decisions-in-memo.md`. Перед планом — recall:
+Решения хранятся в памяти (`memo`), не в файлах. Нет `memo` в сессии — recall пропускается, а решения возвращаются в отчёте той же формулировкой. Под назначением `orchestrate` — только recall: решения и записи возвращаются в отчёте. Протокол — скил `memo`,
+формулировки — `references/decisions-in-memo.md` скила `dev`. Перед планом — recall:
 возможно, часть узлов уже описана как сознательный компромисс с условием пересмотра, и план
 должен считаться с этим. По итогу — save плана как последовательности и каждого узла, который
 решено оставить связанным (`kind: debt`): что не так, почему отложено, критерий закрытия.

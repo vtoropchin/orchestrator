@@ -121,7 +121,8 @@ skills/                         распространяемые скилы: п�
   clean-architecture/ …         скилы дисциплины
 templates/skill/SKILL.md.template  шаблон для авторинга, не готовый скил
 scripts/check-skills.sh          проверка метаданных публичного каталога
-.claude/skills/                  служебные скилы разработки, включая /dev и /adapt
+.agents/skills/                  служебная установка набора (dev, adapt и др.) и memo для DeepSeek Harness
+.claude/skills/                  симлинки на .agents/skills/, memo и skill-creator для Claude Code
 .claude/agents/                  служебные агенты разработки
 CLAUDE.md                       стабильные правила этого проекта
 REVIEW.md                       риск изменений и контракт ревью
@@ -368,8 +369,8 @@ DISABLE_TELEMETRY=1 npx skills@1.7.6 add https://github.com/OWNER/REPO/tree/main
 - `/dev` — разработка скила по конкретной задаче; уровень строгости зависит от размера и риска.
 - `/memo` — решения и контекст проекта `Skills`; `/memo-bootstrap` — первичная инициализация
   памяти, запускается отдельно, не выполнялась автоматически при переносе.
-- `/adapt` — служебная копия прежней версии набора. Публичная версия набора лежит в `skills/`;
-  обновить среду авторинга можно установкой из `skills/` и `adapt` в режиме обновления.
+- `/adapt` — служебная установка набора из `skills/` (файлы в `.agents/skills/`, симлинки в
+  `.claude/skills/`). Обновление: установка из `skills/` и `adapt` в режиме обновления.
   Не переписывайте общие скилы под конкретный стек.
 
 memo использует бинарь `/Users/vladimir/.local/bin/memo` и общую БД с изоляцией по scope.

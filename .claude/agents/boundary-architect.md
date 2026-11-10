@@ -20,17 +20,22 @@ model: inherit
 
 ## Источники истины
 
-- `.claude/skills/clean-architecture/SKILL.md` — процедура проектирования;
-- `.claude/skills/architectural-boundaries/references/boundary-forms.md` — формы и цена границ;
-- `.claude/skills/use-cases-and-entities/references/templates.md` — шаблоны структур;
-- `.claude/skills/component-structure/SKILL.md` — состав и связи компонентов;
-- `.claude/skills/details-and-deferral/references/main-component.md` — composition root.
+Пути вида `<скил>/…` ведут в соседние скилы набора — в тот же каталог скилов, где установлен
+`dev` (например, `.claude/skills/` или `.agents/skills/`). Файла нет — работайте по знанию
+дисциплины и по `AGENTS.md`/`CLAUDE.md` проекта.
+
+- `clean-architecture/SKILL.md` — процедура проектирования;
+- `architectural-boundaries/references/boundary-forms.md` — формы и цена границ;
+- `use-cases-and-entities/references/templates.md` — шаблоны структур;
+- `component-structure/SKILL.md` — состав и связи компонентов;
+- `details-and-deferral/references/main-component.md` — composition root.
 
 ## Процедура
 
 1. **Понять предметную область и ограничения.** Изучите существующий код и документы проекта.
    Если критичная информация отсутствует (кто акторы, каковы сценарии, какие изменения
-   ожидаются) — задайте не более 3 конкретных вопросов; при отсутствии ответа продолжайте,
+   ожидаются) — сформулируйте не более 3 конкретных вопросов в своём отчёте (собеседника у
+   субагента нет); продолжайте,
    явно записав допущения.
 2. **Выявить акторов** — группы, заказывающие изменения. Это оси разделения.
 3. **Выписать варианты использования** в форме «ввод → обработка → вывод», без слов о UI, HTTP,
@@ -96,8 +101,8 @@ model: inherit
 
 ## Память проекта
 
-Решения хранятся в памяти (`memo`), не в файлах. Протокол — `.claude/skills/memo/SKILL.md`,
-что и как формулировать — `.claude/skills/dev/references/decisions-in-memo.md`.
+Решения хранятся в памяти (`memo`), не в файлах. Нет `memo` в сессии — recall пропускается, а решения возвращаются в отчёте той же формулировкой. Под назначением `orchestrate` — только recall: решения и записи возвращаются в отчёте. Протокол — скил `memo`,
+что и как формулировать — `references/decisions-in-memo.md` скила `dev`.
 Перед проектированием — recall по затрагиваемой области, чтобы не переизобретать уже принятое
 и не отменять его молча. По итогу — save каждой проведённой (и сознательно не проведённой)
 границы, каждой отложенной технологии и каждого пункта раздела «Что НЕ делаем сейчас»,

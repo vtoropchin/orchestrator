@@ -11,8 +11,12 @@ model: inherit
 
 ## Источники истины
 
-- `.claude/skills/component-structure/references/metrics.md` — определения метрик и процедура;
-- `.claude/skills/component-structure/SKILL.md` — принципы REP/CCP/CRP/ADP/SDP/SAP.
+Пути вида `<скил>/…` ведут в соседние скилы набора — в тот же каталог скилов, где установлен
+`dev` (например, `.claude/skills/` или `.agents/skills/`). Файла нет — работайте по знанию
+дисциплины и по `AGENTS.md`/`CLAUDE.md` проекта.
+
+- `component-structure/references/metrics.md` — определения метрик и процедура;
+- `component-structure/SKILL.md` — принципы REP/CCP/CRP/ADP/SDP/SAP.
 
 ## Процедура
 
@@ -71,8 +75,8 @@ model: inherit
 
 ## Память проекта
 
-Решения хранятся в памяти (`memo`), не в файлах. Протокол — `.claude/skills/memo/SKILL.md`,
-формулировки — `.claude/skills/dev/references/decisions-in-memo.md`. Перед выводами — recall:
+Решения хранятся в памяти (`memo`), не в файлах. Нет `memo` в сессии — recall пропускается, а решения возвращаются в отчёте той же формулировкой. Под назначением `orchestrate` — только recall: решения и записи возвращаются в отчёте. Протокол — скил `memo`,
+формулировки — `references/decisions-in-memo.md` скила `dev`. Перед выводами — recall:
 часть найденного может быть уже принята сознательно, и тогда это не находка. По итогу — save
 раздела «Что оставить как есть» (каждое терпимое нарушение — с условием пересмотра) и цифр,
 которые имеет смысл сравнить при следующем аудите (единица компонента, циклы, зона боли).

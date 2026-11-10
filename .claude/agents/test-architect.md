@@ -21,9 +21,13 @@ model: inherit
 
 ## Источники истины
 
-- `.claude/skills/testable-architecture/SKILL.md`
-- `.claude/skills/use-cases-and-entities/references/templates.md` — форма портов
-- `.claude/skills/clean-architecture/references/dependency-rule.md`
+Пути вида `<скил>/…` ведут в соседние скилы набора — в тот же каталог скилов, где установлен
+`dev` (например, `.claude/skills/` или `.agents/skills/`). Файла нет — работайте по знанию
+дисциплины и по `AGENTS.md`/`CLAUDE.md` проекта.
+
+- `testable-architecture/SKILL.md`
+- `use-cases-and-entities/references/templates.md` — форма портов
+- `clean-architecture/references/dependency-rule.md`
 
 ## Процедура
 
@@ -79,8 +83,8 @@ model: inherit
 
 ## Память проекта
 
-Решения хранятся в памяти (`memo`), не в файлах. Протокол — `.claude/skills/memo/SKILL.md`,
-формулировки — `.claude/skills/dev/references/decisions-in-memo.md`. Перед диагнозом — recall:
+Решения хранятся в памяти (`memo`), не в файлах. Нет `memo` в сессии — recall пропускается, а решения возвращаются в отчёте той же формулировкой. Под назначением `orchestrate` — только recall: решения и записи возвращаются в отчёте. Протокол — скил `memo`,
+формулировки — `references/decisions-in-memo.md` скила `dev`. Перед диагнозом — recall:
 где швы уже введены сознательно и что решено не покрывать. По итогу — save каждого решения о
 шве (какой порт введён и какое будущее изменение он удешевляет) и каждой области, осознанно
 оставленной без быстрых тестов, с условием пересмотра.

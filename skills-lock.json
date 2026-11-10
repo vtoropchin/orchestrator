@@ -1,11 +1,61 @@
 {
   "version": 1,
   "skills": {
+    "adapt": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "983573078a45cf6b50c6936fc675a12ccdf409f9eace63b3a2d8f359c6dae6df"
+    },
+    "architectural-boundaries": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "b84451d3f5068892ba951e803c5331807e93aab8977d42855cd9105f1eb4f1d5"
+    },
+    "clean-architecture": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "c2ba99fafdf36b1716adc67fb3d16c0d1ce8ee1513964ad49f6262c93323da09"
+    },
+    "code-organization": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "f15a9783a85d69b9b49bdb3229da2e479fafa6f1ea408905896f812c254141e2"
+    },
+    "component-structure": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "8a95e77adeaf3269e12ca7e03b1e5c97d3c22036436b07eadbaaf9e700953f8a"
+    },
+    "details-and-deferral": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "55a99c3c57147dcbd9ea0ee2920c71d260a9dc09df224d54546b2dc418346cb9"
+    },
+    "dev": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "eb8629128ac10ab4e44ab67cda47c2889594eea3e050b283f103f343b3ba1fea"
+    },
     "skill-creator": {
       "source": "anthropics/skills",
       "sourceType": "github",
       "skillPath": "skills/skill-creator/SKILL.md",
       "computedHash": "5ea13a6d9f0d4bb694405d79acd00cadec0d21bb138c4dd10fcf3c500cb835c2"
+    },
+    "solid-design": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "69bbcf306abf6b4ee7ccb4f9d15feb67a079b8a23427b629cd8dfd2d52aed35d"
+    },
+    "testable-architecture": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "2a5f9e709fb8a64b9e82b49e6dbd31def69d29626a5004a33a4189a9dbd1f095"
+    },
+    "use-cases-and-entities": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "b5aa4b80d2c2566214f5d21aa3729e79943e5e0cb4779cd862de87c1ee171d19"
     }
   }
 }

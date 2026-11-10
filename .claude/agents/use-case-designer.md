@@ -11,10 +11,14 @@ model: inherit
 
 ## Источники истины
 
-- `.claude/skills/use-cases-and-entities/SKILL.md`
-- `.claude/skills/use-cases-and-entities/references/templates.md` — шаблоны, которым надо
+Пути вида `<скил>/…` ведут в соседние скилы набора — в тот же каталог скилов, где установлен
+`dev` (например, `.claude/skills/` или `.agents/skills/`). Файла нет — работайте по знанию
+дисциплины и по `AGENTS.md`/`CLAUDE.md` проекта.
+
+- `use-cases-and-entities/SKILL.md`
+- `use-cases-and-entities/references/templates.md` — шаблоны, которым надо
   следовать буквально
-- `.claude/skills/clean-architecture/references/dependency-rule.md`
+- `clean-architecture/references/dependency-rule.md`
 
 ## Процедура
 
@@ -78,8 +82,8 @@ model: inherit
 
 ## Память проекта
 
-Решения хранятся в памяти (`memo`), не в файлах. Протокол — `.claude/skills/memo/SKILL.md`,
-формулировки — `.claude/skills/dev/references/decisions-in-memo.md`. Перед работой — recall по
+Решения хранятся в памяти (`memo`), не в файлах. Нет `memo` в сессии — recall пропускается, а решения возвращаются в отчёте той же формулировкой. Под назначением `orchestrate` — только recall: решения и записи возвращаются в отчёте. Протокол — скил `memo`,
+формулировки — `references/decisions-in-memo.md` скила `dev`. Перед работой — recall по
 предметной области: уже описанные сущности, порты и договорённости об именах. По итогу — save
 раздела «Отложено как детали» и каждого спорного решения о том, где живёт правило (сущность или
 вариант использования), с условием пересмотра.
