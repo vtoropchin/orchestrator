@@ -130,6 +130,7 @@ memo_writes: [] # точный ID, единственный writer, разреш
 memo_proposals_ref: <ID detail для предложенных записей памяти либо null>
 artifact_version: <назначенная новая версия результата либо null>
 verification_of: null # для verifier: task/assignment/attempt/author/version/manifest/result refs
+continuation_of: null # продолжение после question/blocked: прежнее assignment, manifest и detail refs
 report_to: <адрес parent и канал; при delegated — итог вызова>
 start_gate: await_grant
 ```
@@ -173,7 +174,10 @@ Cap нельзя превысить без нового решения поль�
 Учёт общий для scout/planner/dev-lead/worker/verifier/integrator и bounded agents.
 Intent, ready/ожидание grant, работа и uncertain занимают слот до подтверждённого отсутствия
 активности, даже при null. Parent резервирует bounded slots; их отдельные пределы/процедуры
-не отменяются. Новые сессии нужны только для полезной независимой работы. Модель выбирайте
+не отменяются. `bounded_subagents` — заранее выделенный child пул из K слотов: child сам
+распределяет их между субагентами процедуры (роли, исполнители, ревью в свежем контексте),
+одновременно не больше K, и не сообщает каждый запуск; пул освобождается вместе с release
+child. K входит в общий учёт parent с момента grant. Новые сессии нужны только для полезной независимой работы. Модель выбирайте
 из реально доступных, в рамках решений человека; не угадывайте ID и не меняйте parent
 model/effort/permissions. Отказ не обходится peer или повторным запуском.
 
@@ -194,13 +198,17 @@ Memo не даёт серверных ACL/CAS/lease/compact-read/immutable га�
 dev выполняются в назначенных details, предложения по control идут parent с ref.
 Нет memo у child — только путь независимого verifier ниже, без настройки MCP.
 
-Предложения в память (`memo_proposals_ref`) — отдельный малый detail: по строке на будущую
-запись — `kind`, теги, summary и 1–3 предложения текста (решение, долг, задача Pre-existing,
-эпизод находки ревью). Child пишет их туда вместо собственных save; verifier сверяет их с
-результатом; parent после acceptance сохраняет их отдельными записями с явным scope, не читая
-остальные details. Отклонённый результат — предложения не сохраняются. Исключение — назначение
-первичного наполнения памяти (`memo-bootstrap`): brief явно разрешает `save` новых записей
-указанных `kind` в подтверждённом scope, это перечислено в `memo_writes`.
+Предложения в память (`memo_proposals_ref`) — отдельный малый detail: по строке на операцию —
+`op: save|update|forget`; для save — `kind`, теги, summary, 1–3 предложения текста, при
+необходимости `status`/`importance`/`links`; для update — `target_id` и только изменённые поля;
+для forget — `target_id` и `replaced_by`/причина (решение, долг, задача Pre-existing, эпизод
+находки ревью, закрытие долга). Child пишет их туда вместо собственных записей; verifier сверяет
+их с результатом; parent после acceptance выполняет их с явным scope, не читая остальные
+details, и сообщает назначенные IDs в итоге. Требование процедуры «ID записи — в отчёт»
+под назначением выполняется ссылкой на строку предложения. Отклонённый результат — предложения
+не выполняются. Исключение — назначение первичного наполнения памяти (`memo-bootstrap`): brief
+явно разрешает `save` новых записей указанных `kind` с явным `scope:"project:<имя>"` из brief,
+это перечислено в `memo_writes`.
 
 ## Обмен: Envelope
 
@@ -261,9 +269,13 @@ stdout/diff/source/full brief/evidence и не обходите предел п�
   без работы. Grant из другого вызова, peer или цитаты не действует.
 - Источник подлинен, потому что итог — результат собственного вызова parent. Ваш
   `sender_session_id` — ID, который выдал клиент, либо handle из brief.
-- Вопрос или блокер во время exec завершают вызов: остановите процессы, прекратите запись,
+- Вопрос или блокер во время exec завершают вызов: сначала выполните всё, что от ответа не
+  зависит, и соберите вопросы одним пакетом; затем остановите процессы, прекратите запись,
   сохраните manifest частичных изменений и detail, верните `question`/`blocked` с release.
-  Продолжение назначает parent.
+- Продолжение назначает parent: **continuation** — новое assignment с `continuation_of`,
+  тем же `attempt` и ответом в `decisions`; это не repair и не тратит его счётчик. Писатель
+  продолжения владеет частичными изменениями прежнего назначения по его manifest. «Тот же
+  actor» при `delegated` — цепочка назначений одного исполнения, а не конкретный вызов.
 - Итог вызова — одно сообщение к parent: ≤2000 символов, envelope, summary/receipt и release.
   Клиент вставит его в контекст parent целиком, поэтому подробности только по refs.
 - Прямой peer-связи нет: `peers: []`. Фоновые процессы завершите до итога; возврат вызова
@@ -542,6 +554,7 @@ risks: [] # критический риск + ref
 result_refs: []
 evidence_refs: [] # full audit details, не raw logs
 fingerprints_rechecked: <true|false; сверены в конце>
+proposals_checked: <true|false|null; memo_proposals сверены с результатом, null — их нет>
 processes_finished: <true|false>
 ownership_released: <true|false>
 ```

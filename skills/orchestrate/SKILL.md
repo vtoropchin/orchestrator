@@ -187,8 +187,8 @@ Self-report и unverified не pass. Изменение после аудита 
 обычный independent receipt без deferred, пустой commit и принудительный dev не нужны.
 
 Только вы ставите `acceptance=accepted` после final_git либо not_applicable pass и открываете
-зависимую работу. После acceptance сохраните строки принятого `memo_proposals` отдельными
-записями с явным scope; у отклонённого результата они не сохраняются. Rejected/paused/release не открывают её. Резерв для repair снимайте отдельно
+зависимую работу. После acceptance выполните строки принятого `memo_proposals`
+(save/update/forget) с явным scope; у отклонённого результата они не выполняются. Rejected/paused/release не открывают её. Резерв для repair снимайте отдельно
 после release, с новым grant/version; интеграционная правка тоже требует нового аудита.
 Не перечитывайте исходники и не повторяйте тесты за verifier по умолчанию.
 
