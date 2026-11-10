@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "command": "\"<путь-к-memo>\" hook -event session-start -config ${CLAUDE_PROJECT_DIR:-.}/agentmemory.toml",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "command": "\"<путь-к-memo>\" hook -event prompt-submit -config ${CLAUDE_PROJECT_DIR:-.}/agentmemory.toml",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}
