@@ -72,7 +72,8 @@ protocol: v3
 run_id: <устойчивый ID, например root ID>
 project: <проверенный корень>
 scope: <project:...>
-parent_session_id: <фактический parent>
+parent_session_id: <фактический parent либо null, если клиент ID не даёт>
+runtime: <client, transport session|delegated, capabilities, mapping, limits — см. [runtime](runtime.md)>
 mode: economy # fast
 active_limit: 2 # economy: 2; fast: null (безлимит) либо явный положительный целый N
 phase: planning # running | paused | accepted
@@ -91,7 +92,8 @@ economy=2, fast=null либо явный положительный целый N
 
 Control содержит только текущие управляющие данные:
 
-- protocol/run/task, role, assignment_id/attempt/repair_count, session_id;
+- protocol/run/task, role, assignment_id/attempt/repair_count, transport, session_id
+  (при delegated — ID вызова либо handle `<assignment_id>/<gate|exec>`);
 - launch_name/token/state (reserved|intent|bound|uncertain), текущие зависимости;
 - компактные физические read/write/side-effect границы, owner, grant/release;
 - acceptance (pending|rejected|accepted|paused), audit reservation;
@@ -159,7 +161,7 @@ attempt монотонен. Новые IDs/версия/ready/grant и independe
 
 Ожидание push-event сохраняет малый control, refs стратегии/попыток/ожидаемое событие;
 API-ход может закончиться, задача — нет. По подлинному уведомлению продолжайте до final
-acceptance без «продолжить?», без polling/Cron/loop/Monitor. Обычный выбор делается автономно;
+acceptance без «продолжить?», без опроса циклом, планировщиками или мониторами. Обычный выбор делается автономно;
 человеку через parent нужен лишь физический шаг или доказанный unresolved/policy blocker.
 До вопроса выполните независимое, сохраните факты/попытки/состояние/unverified в details и refs
 в control; один пакет с рекомендацией/последствиями/Other просит минимальное действие.
@@ -170,8 +172,10 @@ acceptance без «продолжить?», без polling/Cron/loop/Monitor. �
 1. По root ID подтвердите точную запись get; recall лишь кандидаты. Неоднозначность сначала
    разберите по доступным данным; если безопасного решения нет — блокер через parent.
    Не создавайте параллельный root на те же ресурсы до сверки прежнего.
-2. Проверьте прежнего parent в реальном Desktop. Если он ещё управляет — нужна согласованная
-   передача; idle/revision не доказывают остановку/владение.
+2. Проверьте прежнего parent в реальном клиенте (сохранённый `runtime` в control). Если он
+   ещё управляет — нужна согласованная передача; idle/revision не доказывают остановку/владение.
+   Незавершённые назначения сверяйте по их сохранённому transport/mapping; новый transport
+   применяется только к новым назначениям.
 3. Читайте только root/current_frontier control и нужные текущие compact receipt/решения,
    не весь history/brief/design/result/evidence. Детали загружает назначенный recovery child.
    Mode/active_limit сохраняются точно: null/N/economy 2, без clamp/default. Невалидное или

@@ -38,6 +38,9 @@ Include an edge case or a failure case with the expected response.
   working directory. Reference resources only when those files are included.
 - Do not require the author's project configuration, memory server, or sibling skills.
   If a client-specific feature is essential, state that limitation explicitly.
+- Keep the skill usable across agent clients (Claude Code, DeepSeek Harness, Hermes, ...).
+  Describe the capabilities you need, not one client's tool names; put client-specific
+  tool mappings in a separate reference file and say what happens when a capability is missing.
 
 ## Verification
 

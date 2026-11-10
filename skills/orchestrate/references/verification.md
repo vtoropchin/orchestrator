@@ -6,7 +6,8 @@
 - S — статическая проверка инструкций.
 - F — реально выполненная и явно обозначенная фикстура. F/model проверяет модель переходов;
   F/GitCLI — реальный Git в новом temporary repo, но owner/grant/acceptance остаются моделью.
-- R — наблюдение реальных Desktop-сессий. S/F, install smoke и старый v1/v2 smoke не доказывают R.
+- R — наблюдение реальных child-запусков в конкретном клиенте с указанием клиента и transport.
+  S/F, install smoke и старый v1/v2 smoke не доказывают R; R одного клиента не доказывает другой.
 
 Полные результаты/commands/cwd/exit/tails и ограничения — в назначенном child detail;
 parent получает compact receipt, не stdout. Это матрица сценариев, не журнал прогонов.
@@ -15,11 +16,11 @@ parent получает compact receipt, не stdout. Это матрица сц
 
 | ID | Вход / условие | Ожидаемый наблюдаемый результат |
 |---|---|---|
-| V01 | Две независимые read-only задачи, economy, Desktop и memo доступны | Не более 2 активных child-контекстов всех ролей; intent → bound → ready → grant; result details → release → независимая проверка → решение parent по receipt |
+| V01 | Две независимые read-only задачи, economy, transport session и memo доступны | Не более 2 активных child-контекстов всех ролей; intent → bound → ready → grant; result details → release → независимая проверка → решение parent по receipt |
 | V02 | Две задачи пишут один файл; formatter первой меняет файл второй | Двух grant нет; побочные записи включены во владение; второй writer ждёт |
 | V03 | У parent нет memo | Нет новых start/grant и файлового fallback; parent проверяет разрешённые альтернативы доступа без установки/permissions. Если их нет — доказанный обязательный dependency blocker и один минимальный пакет человеку, не восстановление необязательного ресурса |
 | V04 | Конфиг project:A, адресное чтение показывает project:B | Нет записей/dispatch и пробной записи; запрос восстановления scope |
-| V05 | Нет настоящего Desktop start или адресуемой связи | Явное ограничение; Agent/CLI/tmux/SDK не заменяют сессии |
+| V05 | Нет запуска child средствами клиента (ни session, ни delegated) | `blocked: no_child_runtime`; CLI других агентов/tmux/SDK/fork беседы и роли в одном контексте не заменяют child |
 | V06 | Проектный dev есть / отсутствует | Dev-lead загружает dev и ведёт полноценный локальный цикл; parent не читает source/diff и не повторяет тесты. Отсутствие dev явно сообщается; обязательный конфликт блокирует, dev не переписывается |
 | V07 | session-worker не зарегистрирован или отсутствует | Точный доступный файл читается явно; иначе bundled bootstrap по проверенному доступному пути, inline только при недоступности. Нет скрытой установки/соседней обязательной зависимости |
 | V08 | Три реальных блокера, требующих человека после исследования альтернатив | Child → parent кратко; parent решает доступное сам, выполняет независимое и задаёт только необходимый один пакет с рекомендациями/Other; иных пользовательских каналов нет |
@@ -50,6 +51,12 @@ parent получает compact receipt, не stdout. Это матрица сц
 | V33 | Resume без full brief; control ожидает C1/C2/C3, receipt pass содержит C1/C2 либо иной criteria_version | Parent по собственным frozen expected_criterion_ids/criteria_version отклоняет receipt: требуется точное равенство наборов без пропусков/дубликатов/лишних IDs и совпадение версии; full brief не нужен |
 | V34 | Formatter меняет разрешённый A и запрещённый B, автор декларирует только A | Verifier сам перечисляет фактические tracked/untracked/new/deleted/type/mode/side-effect изменения против baseline вне списка автора, обнаруживает B, сверяет ownership и отклоняет. Недоступный baseline/inventory → blocked, не trusted pass |
 | V35 | Read-only scout/research/verifier в проекте с dev, который требует полный цикл разработки | Загружаются только назначенные применимые процедуры; наличие dev само по себе не навязывает full cycle. Только dev-lead разработки ведёт полноценный локальный dev-цикл; поведение main/worker/bootstrap одинаково |
+| V37 | Клиент без адресуемых сессий, но с субагентами fresh context и возвратом итога (Hermes, DeepSeek Harness) | transport=delegated сохранён в control; gate-вызов возвращает только ready без работы; grant записан в control до exec; exec несёт grant в prompt; итог ≤2000 символов, details в memo; peers=[] |
+| V38 | Клиент даёт и session, и delegated | Выбран session; delegated только по решению пользователя |
+| V39 | Субагент умеет лишь fork беседы parent | Fork не fresh: verifier не независим — blocked, а не запуск fork |
+| V40 | delegated exec вернул question после частичной записи / вызов упал по timeout | Question: процессы остановлены, manifest частичных изменений, продолжение — новое назначение по правилам repair. Timeout: uncertain, writer остаётся владельцем до сверки inventory/эффектов, без слепого повтора |
+| V41 | delegated: субагенты не видят MCP memo | Writer без memo — путь независимого verifier с memo; memo нет ни у одного child — blocked evidence_unavailable до dispatch, не отчёт в контекст parent и не файлы |
+| V42 | Субагент не видит установленный session-worker | Передан точный путь к SKILL.md или bootstrap с контрактом, при недоступности — inline |
 | V36 | После audit байты прежние, но mode0755→0644; regular→symlink с теми же байтами; смена link target; удаление пути | Manifest различает presence/deletion, kind, релевантный mode и symlink target, не только byte SHA-256. Verifier независимо сверяет это состояние в начале/конце; drift → stale, acceptance запрещена |
 
 ## Автономия: ожидаемые S/F/model сценарии
@@ -65,14 +72,14 @@ parent получает compact receipt, не stdout. Это матрица сц
 | A04 | Два неудачных repair одной стратегии | Parent исследует причину/brief/разбиение/тест, фиксирует новую стратегию и проверяемый progress; repair_count относится к стратегии, attempt и история не обнуляются. Повтор без новых данных/безопасной альтернативы → доказанный unresolved blocker, не endless fanout |
 | A05 | Новая стратегия требует заменить actor, старый owner ещё пишет/uncertain | Нового writer/grant нет до фактической остановки, release и сверки остаточных эффектов. Затем новое назначение/grants/version/detail IDs и независимая проверка; timeout или запрос stop сами по себе не handoff |
 | A06 | Worker сообщает обычный технический blocker parent | Parent сам исследует/решает его, при необходимости обновляет brief/grant в scope и продолжает; не пересылает автоматически человеку. Независимая работа продолжается |
-| A07 | API-ход закончен в ожидании child event; пришло подлинное уведомление | Малый control сохранён; реально поддерживаемое push-событие возобновляет работу без «продолжить?». Нет polling/Cron/loop; ready/planning/submitted не финал: до final Git/артефактной acceptance |
+| A07 | API-ход закончен в ожидании child event; пришло подлинное уведомление | Малый control сохранён; реально поддерживаемое push-событие возобновляет работу без «продолжить?». Нет опроса циклом или планировщиком; ready/planning/submitted не финал: до final Git/артефактной acceptance |
 | A08 | Приёмка требует ручного теста физического устройства | Доступное независимое завершено; parent сохраняет факты/попытки/состояние/unverified и одним коротким пакетом с рекомендацией просит минимальное физическое действие; результат не accepted по догадке |
 | A09 | Действительный отказ access / обязательное external approval / конфликт higher-priority | Сначала проверяются разрешённые альтернативы; если их нет, policy blocker доказан. Нет обхода через роль/tool/permissions или выдуманное согласие; автономия не разрешает push/destructive/delete/secrets/payments вне scope |
 | A10 | Пользователь явно задал mode/cap/budget; доступных слотов нет | Значения сохраняются, в том числе при repair/resume: fast/null, fast/N, economy/2; ждут release, меняют разбиение в cap, не обнуляют лимит. Невалидный явный cap — не default null |
 
 ## Бюджет: минимальные S/F сценарии
 
-S сверяет инструкции/схемы, F/model — решения без Desktop start. Считайте все роли,
+S сверяет инструкции/схемы, F/model — решения без реального запуска child. Считайте все роли,
 занятые/зарезервированные слоты и intent/ready/uncertain. Null снимает только числовой cap,
 не независимость, доступы, ownership, Git serial или отдельные пределы bounded subagents.
 
@@ -138,12 +145,12 @@ session-worker и оба. Проектный `--copy`, без `-g`; версию
 Сверьте SKILL.md/references с источниками, отсутствие наружных симлинков/обязательных ресурсов.
 Сопоставьте v3 Brief/Envelope/Summary/Receipt, git_delivery, policy ack, content/final_git
 и Git-grant в обоих контрактах; bootstrap должен вести к своему package-local contracts.md
-либо передаваться inline вместе с ним. Пин CLI: skills@1.7.6. Memo/Desktop не устанавливаются
+либо передаваться inline вместе с ним. Пин CLI: skills@1.7.6. Memo и клиент агента не устанавливаются
 вместе со скилом; install smoke не доказывает R.
 
 ## Ограниченный живой smoke — только с отдельным разрешением
 
-Две настоящие read-only Desktop-сессии: dev-lead выполняет ограниченную задачу, независимый
+Два настоящих read-only child в выбранном клиенте и transport: dev-lead выполняет ограниченную задачу, независимый
 verifier проверяет закреплённый результат после release. Подробности — в назначенных memo
 IDs; parent получает только summaries/receipt. Негативные входы обозначайте как фикстуры;
 они не разрешают реально писать конфликтующие файлы или обходить доступы.

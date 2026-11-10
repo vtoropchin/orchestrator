@@ -1,6 +1,6 @@
 {
   "skill_name": "orchestration-v3",
-  "evaluation_type": "F: simulated decisions, not real Desktop sessions",
+  "evaluation_type": "F: simulated decisions, not real child sessions in any client",
   "evals": [
     {
       "id": 1,
@@ -46,6 +46,34 @@
         "drift.may_change_target = false and may_commit = false",
         "literal_paths.argv uses git --literal-pathspecs add -- and only the two exact filenames; optional -C must select /repo-A/work",
         "unit.pre_git_oid = HA, may_rewrite_prefix = false, inventory baseline retains original plus exact accepted prefix"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "delegated-transport-in-hermes",
+      "skill": "orchestrate",
+      "prompt": "Симуляция координатора в Hermes Agent, без реальных вызовов, memo-записей и Git-эффектов. Схемы инструментов: есть делегирование задачи субагенту со свежим контекстом, вызов блокирует parent и возвращает итоговый текст субагента; инструментов адресной отправки сообщений сессиям, списка сессий и fork нет; субагенты видят MCP memo; scope project:demo подтверждён адресным get. Пользователь: «В economy проверь две независимые справки, файлы не меняй». Прими решения для трёх checkpoints: (select) какой transport и почему; (gate) первый вызов субагента task-A вернул текст envelope ready с верными IDs и criterion R1,R2 — что делаешь до следующего вызова и что передаёшь в следующий вызов; (question) exec-вызов task-B вернул question после того, как записал ничего, процессов нет. Верни JSON: select:{transport,blocked,reason}, gate:{persist_grant_before_call,next_call_phase,grant_in_prompt,reason}, question:{same_assignment_retry_allowed,reason}. Не выдавай симуляцию за реальную проверку.",
+      "expected_output": "Выбран delegated, не blocked; grant сохраняется в control и подтверждается get до exec-вызова, grant передаётся в prompt exec; при вопросе без записей допустим повтор gate/exec того же назначения с уточнением.",
+      "files": [],
+      "assertions": [
+        "select.transport = delegated and select.blocked = false",
+        "gate.persist_grant_before_call = true, next_call_phase = exec, grant_in_prompt = true",
+        "question.same_assignment_retry_allowed = true because no writes or side effects happened",
+        "no claim of real execution or real Hermes sessions"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "runtime-selection-and-no-child-runtime",
+      "skill": "orchestrate",
+      "prompt": "Симуляция выбора транспорта, без реальных запусков. Для трёх НЕЗАВИСИМЫХ клиентов реши, как работает orchestrate: (desktop) Claude Code Desktop с инструментами запуска сессий, адресной отправки сообщений, списка связанных сессий и с субагентами; (fork_only) DeepSeek Harness-профиль, где субагент может только форкнуть всю текущую беседу parent; (single) агент без запуска каких-либо дочерних агентов, но с shell, где установлен CLI другого агента. Верни JSON: desktop:{transport,reason}, fork_only:{transport_or_blocked,reason}, single:{transport_or_blocked,may_use_other_agent_cli,may_run_all_roles_in_one_context,reason}.",
+      "expected_output": "Desktop — session (delegated только по решению пользователя); fork-only — blocked, fork не даёт независимости; single — blocked no_child_runtime, чужой CLI и все роли в одном контексте запрещены.",
+      "files": [],
+      "assertions": [
+        "desktop.transport = session",
+        "fork_only is blocked, not a fork-based launch",
+        "single is blocked with no_child_runtime",
+        "single.may_use_other_agent_cli = false and may_run_all_roles_in_one_context = false"
       ]
     }
   ]
