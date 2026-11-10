@@ -72,6 +72,12 @@ done
 if [ "$found" -gt 0 ]; then
   printf 'make install: DeepSeek Harness (dsh): %s из %s скилов источника в %s/.agents/skills\n' \
     "$found" "$total" "$work_dir"
+  if [ -f "$work_dir/.agents/skills/orchestrate/SKILL.md" ]; then
+    printf '%s\n' \
+      'make install: чтобы orchestrate в dsh запускал субагентов на более дешёвых моделях, включите' \
+      '  в dsh: Settings → Subagent → Model selection → «Allow agents to choose models for' \
+      '  Subagents» и отметьте дешёвую и сильную модели. Действует только для новых сессий.'
+  fi
 else
   printf 'make install: DeepSeek Harness (dsh): в %s/.agents/skills нет скилов источника;\n  %s\n' \
     "$work_dir" 'dsh их не увидит (установка отменена или выбрана глобальная область).'
