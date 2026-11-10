@@ -1,7 +1,7 @@
 ---
 name: session-worker
-description: "Выполняет назначение v3 в дочерней сессии или субагенте кодинг-агента (Claude Code, DeepSeek Harness, Hermes Agent и другие клиенты Agent Skills): исследование, полный dev-цикл, ограниченную работу или независимую проверку. Используйте, когда получен brief v3 от оркестратора: для ready/grant, исполнения задания и краткого отчёта. Не координирует других агентов и не ведёт диалог с пользователем."
-compatibility: "Полное назначение v3 от parent и канал к нему: адресуемая связь (transport session) либо итог вызова субагента (delegated); v1/v2 несовместимы. Без memo у child нужен независимый verifier с memo и проверяемыми источниками evidence. Git CLI для Git-owner фазы. Child-агентов и доступы не создаёт."
+description: "Выполняет назначение v3 в дочерней сессии или субагенте кодинг-агента (Claude Code, DeepSeek Harness, Hermes Agent и другие клиенты Agent Skills): исследование, полный dev-цикл в своём Git worktree и ветке, слияние готовых веток (integrator), ограниченную работу или независимую проверку. Используйте, когда получен brief v3 от оркестратора: для ready/grant, исполнения задания и краткого отчёта. Не координирует других агентов и не ведёт диалог с пользователем."
+compatibility: "Полное назначение v3 от parent и канал к нему: адресуемая связь (transport session) либо итог вызова субагента (delegated); v1/v2 несовместимы. Без memo у child нужен независимый verifier с memo и проверяемыми источниками evidence. Git CLI с `git worktree` для работы в своей ветке, интеграции и Git-owner фазы. Child-агентов и доступы не создаёт."
 ---
 
 # session-worker
@@ -76,8 +76,7 @@ manifest частичных изменений. Не спрашивайте по
 вопросов пользователю. Необязательный ресурс не повод остановиться; обязательная недоступная
 процедура или отказ — блокер, не повод обходить его peer/tool/сменой permissions.
 Не меняйте инструкции агента (CLAUDE.md, AGENTS.md и аналоги) и config без явного пути в
-`write_paths`, не создавайте ветки,
-worktrees, публикации, архивирование/удаление сессий или внешние эффекты вне разрешения.
+`write_paths`, не создавайте ветки и worktrees сверх назначенных в brief, публикации, архивирование/удаление сессий или внешние эффекты вне разрешения.
 
 ## 3. Зафиксировать результат и release
 
@@ -105,10 +104,32 @@ stop/release/сверки эффектов и снова проходит нез
 
 ## Особые роли
 
+### Writer в своём worktree (`worktree-integration/v1`)
+
+Policy по умолчанию для Git-результата. До ready read-only сверьте, что ваш worktree
+отдельный: toplevel = `worktree.path`, свой Git dir, общий common-dir. После grant — HEAD на
+`worktree.branch` в `base_oid` и чистый status (клиент создал worktree от другой точки и он
+чистый — `git switch -c <branch> <base_oid>`). Пишите только внутри своего worktree и сами
+коммитите в свою ветку: `git --literal-pathspecs add -- <paths>`, без отдельного git-grant.
+Нет push, `--force`, rebase/merge в чужие ветки и смены ветки. Возвращённую интегратором
+ветку чините, влив `integration_tip` в свою ветку. Сдача `branch_ready`: всё закоммичено,
+worktree чистый, процессы остановлены, в summary `branch_tip_oid`, `base_oid`, manifest
+`base_oid..tip` и проверки. Это не acceptance.
+
+### Integrator
+
+Не автор веток пакета; владеет worktree интеграционной ветки. Для каждой ветки по порядку:
+сверить tip с `branch_tip_oid`, сохранить intent, `git merge --no-ff --no-commit <oid>`,
+решить только очевидный текстовый конфликт с записью решения, прогнать быстрые проверки,
+зелёные — `git commit --no-edit`, иначе `git merge --abort` и вернуть ветку parent с фактами.
+Своих правок сверх решения конфликтов, push и изменения целевой ветки нет. Подробно —
+раздел `worktree-integration/v1` контракта.
+
 ### Git-owner
 
-File grant не разрешает stage/commit/rebase/ref writes. Для изменяемого Git-результата
-действует `start-target-linear-delivery/v1`: неизменные captured repository/worktree/git-dir/
+File grant не разрешает stage/commit/rebase/ref writes. В запасной линейной policy
+`start-target-linear-delivery/v1` (и при слиянии интеграции в целевую ветку по решению
+пользователя) действуют: неизменные captured repository/worktree/git-dir/
 common-dir, target_ref/start_oid и baseline; отдельный expected_tip и последовательный
 Git-owner по `git-grant` после independent content pass и release writers/verifier.
 До каждой мутации сохраните intent; parent подтверждает compact intent/grant.
@@ -146,6 +167,11 @@ content/final_git delivery, не ставите not_applicable из-за сво�
 самостоятельно наблюдённую identity, OIDs/tree/history/unit/prefix и сверку с baseline.
 У чистого read-only/non-Git/no-change артефакта — not_applicable с причиной, без deferred,
 пустого commit или принудительного dev.
+
+Финальный verifier `worktree-integration/v1` проверяет закреплённый tip интеграционной ветки
+в своём detached worktree: все критерии и проверки всех задач запуска, first-parent цепь из
+merge-коммитов принятых веток до `start_oid`, diff `start_oid..tip` против manifest задач и
+записанных решений конфликтов, неизменность целевой ветки. Отдельной content-фазы нет.
 
 ## Примеры
 

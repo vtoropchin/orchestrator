@@ -15,6 +15,7 @@
 - [Результат и закрепление версии](#результат-и-закрепление-версии)
 - [Критерии двух фаз](#критерии-двух-фаз)
 - [Git-delivery](#git-delivery)
+- [worktree-integration/v1](#worktree-integrationv1)
 - [Coordinator-summary](#coordinator-summary)
 - [Verifier receipt](#verifier-receipt)
 - [Независимый audit и acceptance](#независимый-audit-и-acceptance)
@@ -30,6 +31,7 @@
 | Scout/planner | Исследование проекта/скилов, границы, brief/design в назначенных detail IDs |
 | Dev-lead | Полный локальный проектный dev-цикл: понимание, дизайн, реализация, проверки и ревью; вопросы и новые child через parent |
 | Worker | Ограниченное назначение, в том числе исследование или документация |
+| Integrator | Слияние готовых веток задач в интеграционную ветку в своём worktree, очевидные текстовые конфликты, быстрые проверки, возврат смысловых конфликтов авторам через parent |
 | Verifier | Независимая проверка закреплённой версии, полный audit в detail и краткий receipt parent |
 
 Verifier не может быть автором результата, его implementer или reviewer-соавтором.
@@ -64,7 +66,7 @@ Child не обращается к человеку и не запускает c
 и в слотах parent. Нет подтверждённого канала parent — `blocked no_parent_channel`,
 не пользовательский диалог или файловый канал. Канал зависит от `transport` (см. «Транспорт»).
 Не меняйте инструкции агента (CLAUDE.md, AGENTS.md и аналоги) и config без явного пути
-в `write_paths`; permissions/ветку не меняйте и не создавайте worktree; Git-мутации возможны лишь в отдельной Git-owner фазе.
+в `write_paths`; permissions не меняйте; не создавайте ветки и worktree сверх назначенных. В `worktree-integration/v1` writer коммитит только в свою ветку своего worktree, integrator — только в интеграционную; в линейной policy Git-мутации возможны лишь в отдельной Git-owner фазе.
 
 Требующий прав parent блокер/новый эффект child передаёт ему кратко: факты, попытки, риск+ref,
 варианты, рекомендация и независимая часть. Parent сначала решает техническое сам.
@@ -90,7 +92,7 @@ root_id: <ID малого root memo либо null в standalone>
 task_id: <ID task/control либо устойчивый ID standalone>
 assignment_id: <уникальный ID задачи и попытки>
 attempt: 0
-role: worker # scout | planner | dev-lead | verifier
+role: worker # scout | planner | dev-lead | integrator | verifier
 project: <проверенный абсолютный корень потребителя>
 scope: <подтверждённый project:... либо null без memo>
 transport: session # delegated; см. «Транспорт»
@@ -165,7 +167,7 @@ repair стратегии parent диагностирует brief/причину
 | fast без cap | `null`: числового потолка нет |
 | fast с явным cap | Заданный пользователем положительный целый `N` |
 
-Без mode parent сам выбирает соразмерный режим и кратко сообщает. «Fast» без числа не блокер
+Без mode parent выбирает fast без cap (`null`) и кратко сообщает; economy — только по просьбе пользователя. «Fast» без числа не блокер
 и не запрос расширения. Явный cap 0/отрицательный/нецелый требует уточнения через parent до
 dispatch, не превращается в null. Null не означает 0/-1/бесконечность или скрытую квоту.
 Сравнивайте занятые/зарезервированные слоты с числом только при `active_limit != null`.
@@ -321,6 +323,10 @@ Submission закрепляет content/артефакты по протокол
   финальный pass позволяет parent принять результат.
 - Для not_applicable артефакта deferred=[], content/final наборы равны всему expected набору;
   обычный независимый receipt требует все pass.
+- Для `worktree-integration/v1` content-фазы и content receipt нет: `content_required_ids: []`,
+  `deferred_git_final_ids: []` (правило объединения выше к ней не применяется),
+  `final_required_ids` = весь expected набор всех задач запуска. Один final_git receipt на
+  tip интеграции требует все pass. `branch_ready` и `integrated` — не receipt и не pass.
 
 Пример: CONTENT=pass, LOCAL_COMMIT=deferred_git_final открывает только Git-grant, не accepted.
 После resume карту читают из control, не выводят из receipt. Менять её ради зелёного результата
@@ -329,8 +335,13 @@ receipt требует разбиения назначения до grant, не 
 
 ## Git-delivery
 
-Единственная policy — `start-target-linear-delivery/v1`; единственный номер протокола —
-`protocol: v3`, без второго schema_version. Блок обязателен в brief/control и handshake.
+Две policy: по умолчанию `worktree-integration/v1` (отдельный worktree и ветка у каждого
+writer, слияние integrator, см. [ниже](#worktree-integrationv1)); запасная
+`start-target-linear-delivery/v1` — последовательная доставка в общий checkout, когда
+отдельный worktree child дать нельзя или так решил пользователь. Policy выбирает parent
+и фиксирует в brief; child её не меняет. Единственный номер протокола —
+`protocol: v3`, без второго schema_version. Схема и разделы ниже до
+[worktree-integration/v1](#worktree-integrationv1) описывают линейную policy. Блок обязателен в brief/control и handshake.
 Applicability относится к результату, не роли: чистое read-only исследование без изменяемого
 Git-артефакта/non-Git/no-change — not_applicable с причиной и null/[] неприменимыми полями,
 без пустого commit. При подтверждённом no-change уже captured identity/start/baseline
@@ -342,7 +353,7 @@ Git CLI — внешняя зависимость изменяемого Git-р�
 ```yaml
 applicability: required # not_applicable: чистый read-only artifact/non-Git/no-change, не роль verifier
 reason: null # причина not_applicable обязательна; неприменимые поля null/[]
-policy: start-target-linear-delivery/v1 # null только при not_applicable
+policy: start-target-linear-delivery/v1 # worktree-integration/v1 — схема в своём разделе; null только при not_applicable
 repository: <canonical repository identity>
 worktree: <canonical абсолютный worktree root>
 git_dir: <canonical per-worktree Git dir>
@@ -513,8 +524,109 @@ Not_applicable использует обычный independent receipt phase=not
 или configs. Push отдельно разрешает человек, это не условие local delivery. Higher-priority
 branch-first на default branch или обязательный merge-based sync helper конфликтуют с policy:
 blocked parent до эффекта, не скрытая смена target, merge или обход helper ручной командой.
-Permission denial не обходится другим actor. Worktree, публикация, архивирование и удаление
-не автоматические эффекты.
+Permission denial не обходится другим actor. В линейной policy worktree не создаются;
+публикация, архивирование и удаление не автоматические эффекты ни в одной policy.
+
+## worktree-integration/v1
+
+Policy по умолчанию для изменяемого Git-результата, если каждому writer можно дать свой
+worktree (изоляция клиента либо `git worktree add` от parent). Цель — одновременная работа
+writers: физически конфликтовать им негде, логические конфликты решаются при слиянии.
+Целевая ветка пользователя этой работой не меняется; результат — интеграционная ветка.
+
+```yaml
+policy: worktree-integration/v1
+applicability: required
+repository: <canonical repository identity>
+common_dir: <canonical Git common-dir identity>
+target_ref: <полный refs/heads/... целевой ветки пользователя; не меняется>
+start_oid: <OID target_ref при capture>
+integration_ref: refs/heads/orch/<run>/integration
+integration_tip: <ожидаемый текущий OID интеграции>
+worktree:
+  provided_by: client # parent
+  path: <canonical абсолютный root worktree этого назначения>
+  git_dir: <canonical per-worktree Git dir; не равен Git dir основного checkout>
+  branch: refs/heads/orch/<run>/<task> # integrator: integration_ref; final verifier: null (detached)
+  base_oid: <tip интеграции при dispatch; final verifier — закреплённый tip>
+branch_tip_oid: null # writer указывает в summary
+merge_batch: [] # integrator: [{task, branch_ref, branch_tip_oid}] в топологическом порядке
+merged: [] # integrator: [{task, pre_oid, merge_oid, conflicts_ref}]
+returned: [] # integrator: [{task, reason, evidence_ref}]
+state: captured # writing|branch_ready|integrating|integrated|returned|final_pending|accepted|blocked
+intent_ref: null
+final_oid: null
+final_tree: null
+final_receipt_ref: null
+```
+
+Поля линейной policy (`delivery_unit_id`, `pre_git_oid`, `accepted_prefix_*`, `owner`,
+`grant_ref`, `rebase_policy`) здесь `null`. Baseline каждого назначения — чистое дерево
+`base_oid` в его worktree; основной checkout пользователя с его dirty/staged не трогается.
+`git_policy_ack.phase`: `task_branch` (writer), `integrator`, `file_only` (final verifier)
+или `not_applicable`. В `phase_criteria` этой policy content-фазы нет:
+`content_required_ids: []`, `deferred_git_final_ids: []`, `final_required_ids` — все IDs.
+
+### Writer в своём worktree
+
+- **Ready.** Read-only сверьте: `rev-parse --show-toplevel` = `worktree.path`,
+  `--absolute-git-dir` = `worktree.git_dir` и не равен Git dir основного checkout,
+  `--git-common-dir` = `common_dir`. Несовпадение или общий с кем-то worktree — blocked.
+- **Первый шаг после grant.** HEAD на `worktree.branch` в `base_oid`, `status` чистый.
+  Если клиент создал worktree от другой точки и он чистый — `git switch -c <branch> <base_oid>`.
+  Иначе blocked с фактами.
+- **Работа.** Пишите только внутри `worktree.path`; `write_paths` считаются от его корня.
+  Другие worktree, основной checkout, целевая и интеграционная ветки — вне границ.
+  Внешние общие ресурсы (БД, порты, кэши, сервисы) — только назначенные brief.
+- **Коммиты.** В свою ветку, когда удобно, без отдельного git-grant:
+  `git --literal-pathspecs add -- <paths>` по manifest, затем `git commit`. Нет push,
+  `--force`, rebase/merge в чужие ветки, switch на другую ветку, stash/clean чужого.
+- **Repair после возврата интегратором.** `git merge <integration_tip>` в свою ветку,
+  решение конфликта по смыслу, повтор проверок, новая сдача. Это единственный merge writer.
+- **Сдача (`branch_ready`).** Всё закоммичено, `status --porcelain` пуст (свои временные
+  файлы удалены; чужих в своём worktree нет), процессы остановлены. Summary содержит
+  `branch_tip_oid`, `base_oid`, список коммитов, manifest `base_oid..branch_tip_oid`,
+  выполненные проверки и release. После сдачи ветку не двигайте без нового назначения.
+
+### Integrator
+
+Отдельное назначение, не автор веток пакета. Владеет worktree `integration_ref`.
+Для каждой ветки `merge_batch` по порядку:
+
+1. Сверьте tip ветки с `branch_tip_oid` и HEAD интеграции с `integration_tip`; drift — blocked.
+2. Сохраните intent в своём detail: task, pre_oid, branch_tip_oid.
+3. `git merge --no-ff --no-commit <branch_tip_oid>`.
+4. Текстовый конфликт решайте, только если решение очевидно из обеих сторон и сохраняет
+   намерение каждой (два добавления в реестр, независимые соседние правки). Каждый файл и
+   суть решения — в `conflicts_ref`. Смысловой конфликт — `git merge --abort`, в `returned`.
+5. Быстрые проверки из brief на незакоммиченном слиянии. Зелёные — `git commit --no-edit`,
+   запись в `merged`, `integration_tip` = новый OID. Красные из-за ветки — `git merge --abort`
+   и `returned` с фактами; дальше по пакету, если следующая ветка от этой не зависит.
+
+Никаких правок сверх решения конфликтов, push, изменения `target_ref` или веток задач.
+После сбоя сверяйтесь с intent: merge-коммит уже есть — checkpoint, не повтор; есть
+`MERGE_HEAD` без коммита — `git merge --abort` и шаг заново. Summary: `merged`, `returned`,
+новый `integration_tip`, выполненные проверки, release.
+
+### Final verifier
+
+Read-only verifier с `verification_phase: final_git` на закреплённом `integration_tip`,
+обычно в отдельном detached worktree от parent (`git worktree add --detach <path> <tip>`),
+чтобы тесты не мешали другим. Не автор, не integrator, не соавтор. Проверьте:
+
+- `integration_ref` = закреплённому tip; `target_ref` этой работой не сдвинут;
+- first-parent цепь от tip до `start_oid` состоит только из merge-коммитов `merged`;
+  второй родитель каждого = сданный `branch_tip_oid`; каждая принятая задача влита один раз;
+- diff `start_oid..tip` = объединение manifest задач и записанных решений конфликтов;
+  лишнее, потерянное или изменённое вне записанного — fail;
+- все критерии и проверки всех задач запуска на tip; в конце повторно сверьте tip.
+
+Git-receipt этой policy: policy, observed repository/common_dir/worktree, target_ref и его
+наблюдённый OID, start_oid, integration_ref, final_oid, final_tree, `merged`, criterion IDs.
+Pass открывает parent `acceptance=accepted` для всего запуска. Слияние интеграции в
+`target_ref`, push и PR — только по отдельному решению пользователя: для локального слияния
+parent назначает Git-owner по `git-grant`, результат снова проверяет независимый verifier.
+Уборка worktree и веток — служебная операция parent после acceptance.
 
 ## Coordinator-summary
 
@@ -524,7 +636,7 @@ role: <назначенная роль>
 artifact_version: <версия либо null>
 manifest_fingerprint: <digest либо null>
 detail_refs: [] # ID/версия result/evidence, доступные непосредственному потребителю
-git_delivery: <applicability/policy/state, target/start, unit/pre_git_oid/prefix, expected_tip/final_oid/tree/refs; либо explicit not_applicable>
+git_delivery: <applicability/policy/state; линейная: target/start, unit/pre_git_oid/prefix, expected_tip/final_oid/tree/refs; worktree-integration: worktree path/branch, base_oid, branch_tip_oid либо merged/returned/integration_tip; либо explicit not_applicable>
 completed: <краткий результат, не evidence>
 risks: [] # существенный риск + ref
 unverified: [] # criterion IDs/ограничения

@@ -163,6 +163,64 @@
         "child_loads_adhd = false"
       ],
       "files": []
+    },
+    {
+      "id": 12,
+      "name": "memo-tasks-dependency-map",
+      "skill": "orchestrate",
+      "prompt": "Симуляция координатора orchestrate, без реальных сессий, memo-записей и Git-эффектов. Клиент: Claude Code CLI, субагенты со свежим контекстом и возвратом итога, фоновые субагенты с уведомлением о завершении; субагенту можно дать изоляцию в отдельном git worktree (клиент создаёт worktree от текущего HEAD). Memo scope project:shop подтверждён адресным get. Репозиторий Git, текущая ветка refs/heads/main, HEAD=aaa111, рабочее дерево чистое. Пользователь: «Сделай задачи #21, #22, #23 и #24 из memo». Режим не назван. В memo: #21 «API оплаты» (src/billing/), #22 «логирование запросов» (src/middleware/, добавить строку в src/routes/index.ts), #23 «экран оплаты в UI» status=todo, blocked_by #21, #24 «health endpoint» (src/health/, добавить строку в src/routes/index.ts), #30 «рефакторинг БД» открыта, не названа, ни с чем не связана. Все задачи T1, риск low. Прими решения и верни JSON с ключами: mode, active_limit, git_policy, includes_task_30 (bool), work_map:{nodes:[...], edges:[{from,to,kind,reason}]}, first_dispatch:[task IDs, запускаемые сразу], per_writer:{worktree_source, branch_name_pattern, base}, integration_ref, target_branch_changed_by_run (bool), when_23_starts, who_merges, per_branch_independent_verifier (bool), user_questions_before_start:[...]. Кратко обоснуй каждое решение полем reasons.",
+      "expected_output": "fast/null; только названные задачи; #21,#22,#24 сразу в своих worktree от start_oid; #23 — в момент интеграции #21; soft-ребро по общему routes/index.ts не сериализует; integrator сливает в orch/<run>/integration; main не меняется; без вопросов до старта.",
+      "files": [],
+      "assertions": [
+        "mode=fast и active_limit=null",
+        "git_policy=worktree-integration/v1",
+        "includes_task_30=false",
+        "first_dispatch ровно #21,#22,#24 (без #23)",
+        "ребро #21→#23 hard, #22–#24 soft/параллельно",
+        "integration_ref вида refs/heads/orch/<run>/integration",
+        "target_branch_changed_by_run=false",
+        "#23 стартует при интеграции #21, а не после всех",
+        "who_merges = integrator (child)",
+        "per_branch_independent_verifier=false",
+        "user_questions_before_start пуст"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "big-task-decomposition",
+      "skill": "orchestrate",
+      "prompt": "Симуляция координатора orchestrate, без реальных эффектов. Клиент: Claude Code Desktop с адресуемыми сессиями (start_session с параметром use_worktree, send_message, list_sessions, push-events). Memo scope project:app подтверждён. Git-репозиторий, ветка refs/heads/develop, HEAD=bbb222. Пользователь: «Задача #50 из memo: добавь мультиязычность — подключить i18n-библиотеку, вынести строки 40 экранов в словари (экраны разбиты по 4 модулям: auth, catalog, cart, profile), переключатель языка в настройках, локализовать e-mail шаблоны. Сделай как можно быстрее». Размер оценивается как T3, риск medium. Верни JSON: mode, active_limit, decompose (bool), who_decomposes (роль и профиль модели), subtasks:[{id, objective, depends_on:[...], write_areas:[...]}], first_dispatch:[...], second_dispatch_trigger (что именно запускает следующие подзадачи), memo_records_created (что и кем сохраняется в memo), use_worktree_for_writers (bool), integration_branch, expected_conflict_points:[...], final_check (кто и что проверяет). Кратко обоснуй в поле reasons.",
+      "expected_output": "Planner на top декомпозирует T3: подзадача-фундамент i18n первой, затем модули и остальное параллельно после её интеграции; parent сохраняет подзадачи в memo с part_of/blocked_by; writers с use_worktree; один независимый final verifier на tip интеграции.",
+      "files": [],
+      "assertions": [
+        "mode=fast и active_limit=null",
+        "decompose=true, planner на top",
+        "есть ранняя подзадача-фундамент (i18n setup/контракт), от которой зависят остальные",
+        "first_dispatch — только фундамент и действительно независимое",
+        "второй запуск — по интеграции фундамента в интеграционную ветку",
+        "подзадачи сохраняет в memo parent как task part_of #50 с blocked_by",
+        "use_worktree_for_writers=true",
+        "integration_branch вида orch/<run>/integration",
+        "final_check: один независимый verifier на tip интеграции"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "integration-conflict-and-cleanup",
+      "skill": "orchestrate",
+      "prompt": "Симуляция координатора orchestrate, без реальных эффектов. Запуск run=r7, целевая ветка refs/heads/main (start_oid=ccc333), Git-результат, клиент даёт worktree-изоляцию субагентов. Состояние: задачи A, B, C сданы своими dev-lead как готовые ветки (dev-цикл с ревью пройден, worktree чистые, процессы остановлены). При слиянии C выясняется, что C и B по-разному меняют сигнатуру одной функции calc_total (смысловой конфликт). Задача D отклонена после двух неудачных repair, в её ветке 2 коммита. После исправления C все A, B, C влиты, проверки зелёные. Далее независимая финальная проверка прошла. На момент уборки: worktree A и B чистые и влиты; в worktree C остался неотслеженный файл tmp/debug.log; worktree D с двумя невлитыми коммитами. Верни JSON: who_merges, merge_procedure (команды/шаги для одной ветки), on_semantic_conflict_C (кто и как чинит), when_dependents_unblock, final_verification:{who, what}, target_branch_action_after_acceptance (что делает координатор с main), cleanup:{removed:[...], commands:[...], not_removed_table:[{item, state, why, next_step}]}. Кратко обоснуй в поле reasons.",
+      "expected_output": "Integrator: merge --no-ff --no-commit, проверки, commit или abort; смысловой конфликт возвращается автору C; финальная независимая проверка tip; main не трогается без решения пользователя; A и B убраны без force, C, D и интеграционная ветка — в таблице с причинами.",
+      "files": [],
+      "assertions": [
+        "who_merges = integrator (не parent, не автор)",
+        "merge_procedure: --no-ff --no-commit, проверки, затем commit или merge --abort",
+        "конфликт C: abort, ветка возвращена автору C, тот вливает tip интеграции в свою ветку и сдаёт снова",
+        "зависимые открываются по integrated",
+        "final verifier независим (не автор/integrator), проверяет tip интеграции целиком",
+        "main не меняется автоматически, вопрос пользователю о слиянии/PR",
+        "удалены A и B: worktree remove без --force, branch -d",
+        "в таблице: C (неотслеженный файл), D (невлитые коммиты), ветка интеграции; с причинами"
+      ]
     }
   ]
 }

@@ -35,7 +35,7 @@
 | prompt | Полное назначение v3 с решениями/критериями/правами, точными доступными brief/design/dev/worker/bootstrap refs и launch token |
 | background | Самодостаточный контекст минимум 80 символов, не «см. разговор» |
 | initiation | `user_asked` только при действительном запросе на работу в сессиях и допустимой для tool задаче |
-| use_worktree | `false`, только если клиент разрешает общий checkout |
+| use_worktree | `true` для writer и integrator в `worktree-integration/v1`; `false` для read-only ролей и запасной линейной policy |
 | name/title/model | Короткие handle/title; модель из фактически доступных, в рамках решений пользователя |
 
 До start сохраните handle/token и launch intent в memo, после — returned ID и bind.
@@ -44,8 +44,9 @@ Parent проверяет доступность refs, child читает их �
 и нетранслируемый контекст; при недоступности bootstrap пути — сам bootstrap и его контракт.
 
 Не передавайте cwd/host/preset/другой проект без решения пользователя и проверки назначения.
-Не включайте cloud/offer там, где запрещено. Не создавайте worktree автоматически, если общий
-checkout недоступен: отсутствие разрешённого маршрута — blocker, не вопрос о предпочтениях.
+Не включайте cloud/offer там, где запрещено. Worktree для writer — по `use_worktree` клиента;
+если клиент его не даёт, parent создаёт worktree сам (`git worktree add`) и передаёт путь в
+brief. Нет ни того, ни другого — запасная линейная policy, не обход через другой проект.
 Не меняйте parent model/effort/permissions, browser/MCP или настройки. Обычный выбор доступной
 модели/режима делайте сами по цели/контексту и кратко сообщайте; явные mode/cap/budget сохраняйте.
 Не угадывайте version ID модели по памяти. Профиль и модель child — по
@@ -74,7 +75,9 @@ Parent не читает source/diff/raw logs и не повторяет тес�
 
 Применяйте [Git-delivery](contracts.md#git-delivery), не отдельный Desktop-вариант policy.
 Captured target/start/baseline сохраняются независимо от metadata worktree клиента.
-Общий checkout не даёт независимых index/refs: единственный Git-owner по отдельному git-grant
+В `worktree-integration/v1` у каждого writer свой worktree и index; общие у них только refs
+в common-dir, поэтому каждый двигает лишь свою ветку, а интеграционную — только integrator.
+В запасной линейной policy общий checkout не даёт независимых index/refs: единственный Git-owner по отдельному git-grant
 после content pass, сериализация по canonical worktree/git-dir/common-dir и общим refs.
 Intent parent persist/get предшествует мутации; timeout не retry/release.
 
@@ -97,6 +100,8 @@ Read-only verifier required артефакта сохраняет required/file_
 для внешней публикации. Показ child рядом с parent возможен при поддержке клиента, но необязателен.
 
 После release сохраняйте адрес для repair; автоматически архивировать/удалять сессии нельзя.
+Worktree, созданный клиентом для сессии, убирается по правилам уборки
+([параллельная доставка](parallel-delivery.md#7-уборка-и-таблица-остатков)): только влитый и чистый.
 Видимость не скрывается: progress, final и permission prompts могут отображаться. Каждый
 envelope/summary к parent ≤2000 символов; final и wrap-up — также каждый ≤2000. Подробная
 peer-связь не должна попасть parent через auto-forward: нет безопасного канала — verifier

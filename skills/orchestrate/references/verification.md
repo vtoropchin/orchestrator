@@ -35,7 +35,7 @@ parent получает compact receipt, не stdout. Это матрица сц
 | V17 | «Готово» без проверяемого артефакта/evidence | Submitted не accepted; verifier отклоняет/блокирует; parent не воспроизводит работу вместо него |
 | V18 | Worker без memo; verifier с memo и проверяемым прямым доступом | Verifier сам получает evidence по источникам/прямой связи/адресному транскрипту и пишет свой detail; parent не получает полный отчёт |
 | V19 | Все economy 2 / fast с явным N слота заняты, один uncertain | Scout/planner/dev-lead/worker/verifier/integrator и bounded agents учитываются; нового запуска сверх cap без нового решения пользователя нет |
-| V20 | Acceptance завершена | Компактный итог, root ID, реальные session refs, риски/unverified; обязательная локальная Git-доставка только по git-grant; нет автоматических worktree/archive/delete/publish |
+| V20 | Acceptance завершена | Компактный итог, root ID, реальные session refs, риски/unverified; целевая ветка не меняется без решения пользователя, есть один вопрос о слиянии/push/PR интеграционной ветки; удалены только влитые чистые worktree и ветки задач (`worktree remove` без force, `branch -d`), остальное — таблица с причинами; нет auto archive/delete сессий/publish |
 | V21 | Симлинк/hardlink/разный регистр/каталог и вложенный файл | Один физический ресурс, включая алиасы; неясность сериализуется |
 | V22 | B читает живой файл writer A | Обычная зависимая реализация ждёт acceptance A; исключение — отдельный verifier read-grant после submission/release, до acceptance, с запретом новых writer |
 | V23 | Child пытается менять root/control или чужой detail | Не выполняет update; разрешены только точные заранее созданные detail IDs и операции своего назначения, один writer на ID |
@@ -66,7 +66,7 @@ parent получает compact receipt, не stdout. Это матрица сц
 
 | ID | Вход / условие | Ожидаемый исход S/F/model |
 |---|---|---|
-| A01 | Цель задана, mode пропущен, права и данные достаточны | Parent выбирает соразмерный режим по цели/контексту, кратко сообщает выбор и продолжает без обязательного вопроса о mode/модели/плане/фазе; fast → null, economy → 2 |
+| A01 | Цель задана, mode пропущен, права и данные достаточны | Parent выбирает fast/null по умолчанию, кратко сообщает выбор и продолжает без обязательного вопроса о mode/модели/плане/фазе; явный economy → 2 |
 | A02 | Вызван orchestrate для одной цели; полезный child готов, права клиента допускают start | Parent автономно выполняет intent/bind/ready/grant и запуск следующих волн в scope; не требует отдельного пользовательского запроса на каждый start. Только parent запускает сессии; реальный initiation не подделывается |
 | A03 | Неясен технический вариант / недоступен необязательный ресурс | Child исследует доступные данные, conventions/defaults и безопасные альтернативы; выбирает лучший соразмерный вариант, кратко фиксирует assumptions и продолжает. Не меняет цель/acceptance и не создаёт фиктивный блокер |
 | A04 | Два неудачных repair одной стратегии | Parent исследует причину/brief/разбиение/тест, фиксирует новую стратегию и проверяемый progress; repair_count относится к стратегии, attempt и история не обнуляются. Повтор без новых данных/безопасной альтернативы → доказанный unresolved blocker, не endless fanout |
@@ -90,6 +90,7 @@ S сверяет инструкции/схемы, F/model — решения б�
 | B03 | Economy, два активных назначения; готово третье | `active_limit: 2`; третье блокируется, в том числе если один слот intent/uncertain |
 | B04 | Resume root с fast/null, fast/3, fast/6 либо economy/2 | Значения сохраняются точно; null не становится 4, custom N не clamp, неизвестный cap не подставляется |
 | B05 | Fast с явным cap 0, -1, 2.5 или «много» | Уточнение через parent до dispatch; значение не игнорируется и не преобразуется в null/безлимит |
+| B06 | Пользователь не назвал режим | `mode: fast`, `active_limit: null`, одна строка в статусе; без вопроса и без economy |
 
 ## Выбор модели: S/F сценарии
 
@@ -120,13 +121,13 @@ Git-final IDs=deferred_git_final (не unverified/pass); final — все pass. 
 | G1 | Стартовый target; unborn; branch/HEAD switch; resume | Canonical repository/worktree/git-dir/common-dir, полный target_ref, start_oid или unborn, initial index/status/baseline и expected_tip сохранены до работы. Switch/drift блокирует; resume не выбирает цель заново. Detached/чужая операция блокируют |
 | G2 | Свой accepted diff рядом с чужим dirty/staged/untracked | До stage literal pathspecs + отдельные exact argv, включая *, :(magic), пробелы/leading dash. Только owned accepted paths и явно разрешённый preexisting snapshot идут в обязательный local commit. Чужое сохраняется; неподтверждённый index блокирует. Pure read-only artifact/non-Git/no-change — явный not_applicable с причиной, без пустого commit |
 | G3 | Два file-writer с непересекающимися путями одного checkout | Одновременно один Git-owner по отдельному parent git-grant; второй не stage/commit/rebase/ref-write. Для sibling A/B exact accepted prefix и pre_git_oid unit не присваивают чужие paths. Проверяется common-dir и общий index, не только file ownership; таймаут не передаёт owner |
-| G4 | Прямой commit; старый merge до start_oid | Новые commits линейны в start target, без merge/helper/новых merge commits; старый merge не flatten. Нет ненужного rebase |
-| G5 | Нужный rebase; чужой/published range; конфликт; isolation | Только разрешённые собственные unpublished task commits, explicit onto/upstream/branch refs и OIDs. Неизвестная публикация/чужой commit/неподдерживаемая интеграция — blocked; нет force-push, auto worktree/branch/скрытого FF маршрута; конфликт без --skip |
+| G4 | Линейная policy: прямой commit; старый merge до start_oid | Новые commits линейны в start target, без merge/helper/новых merge commits; старый merge не flatten. Нет ненужного rebase |
+| G5 | Нужный rebase; чужой/published range; конфликт; isolation | Только разрешённые собственные unpublished task commits, explicit onto/upstream/branch refs и OIDs. Неизвестная публикация/чужой commit/неподдерживаемая интеграция — blocked; нет force-push; в линейной policy нет auto worktree/branch/скрытого FF маршрута; конфликт без --skip |
 | G6 | Content pass; commit/hook/rebase меняет pin; нет final receipt | Content pass не acceptance. После Git independently final target/start/final OID/tree, committed/staged inventory, full manifest, observed repository/worktree/git-dir/common-dir и criterion IDs/history. Весь run range = exact verified accepted prefix + owned unit range; фазовые required/deferred наборы frozen. Исходный baseline неизменен; stale требует новой версии/проверки; только final accepted открывает downstream |
 | G7 | Большой Git evidence, resume, bounded roles | Thin parent получает compact receipt/refs, не diff/log/повторные тесты; control/detail, ≤2000, independent pin, economy 2 / fast null либо N, два repair на стратегию с автономной диагностикой, effects и dev-role/source flow сохраняются |
 | G8 | Нет push grant; default-branch branch-first/merge-helper conflict | Нет push/force/чужого присвоения/auto stash/reset/clean/add-all. Higher-priority конфликт блокирует, target не меняется молча; permission denial не обходится |
 | G9 | Crash после commit до checkpoint; незавершённый rebase; owner пропал | Intent до мутации, reconcile фактических OIDs/tree/paths/операции до повтора. Уже сделанный commit не дублируется; ambiguous paused; не abort чужую операцию, не --skip; owner release только после подтверждённой остановки |
-| G10 | v1/v2 worker; v3 без policy ack; read-only actor проверяет required artifact | protocol_mismatch/blocked для старого или неполного handshake. Pure read-only artifact/non-Git явно not_applicable; verifier required artifact сохраняет required + file_only + verification_phase=content/final_git, не forced dev/commit и не понижение artifact applicability. Policy start-target-linear-delivery/v1 подтверждена, protocol:v3 без второго schema_version |
+| G10 | v1/v2 worker; v3 без policy ack; read-only actor проверяет required artifact | protocol_mismatch/blocked для старого или неполного handshake. Pure read-only artifact/non-Git явно not_applicable; verifier required artifact сохраняет required + file_only + verification_phase=content/final_git, не forced dev/commit и не понижение artifact applicability. Policy из brief (`worktree-integration/v1` или линейная) подтверждена буквально, protocol:v3 без второго schema_version |
 
 Обязательные F/GitCLI случаи: stable target local commit; unborn root; неизменённые foreign
 dirty/staged; модель двух owner; branch switch/drift; own rebase без новых merge; rebase
@@ -142,6 +143,32 @@ unknown sibling/pending receipt/изменённый prefix delta блокиру
 LOCAL_COMMIT deferred_git_final открывают лишь Git-grant, unverified не pass, final требует
 оба pass. Два clone с одинаковым OID/tree, но разными actual identities отклоняются по
 observed_identity. G10/read-only verifier не меняет required artifact на not_applicable.
+
+## Параллельная доставка: S/F сценарии
+
+F/model проверяет решения parent по [параллельной доставке](parallel-delivery.md), F/GitCLI —
+реальные `git worktree`/merge в новом temporary repo. Целевая ветка fixture не должна сдвигаться.
+
+| ID | Вход / условие | Ожидаемый исход S/F |
+|---|---|---|
+| P01 | Названы memo-задачи A,B,C,D; C `blocked_by` A; режим не задан | fast/null; A, B, D стартуют сразу, каждая в своём worktree от `start_oid`; C — в момент `integrated` A, от нового tip интеграции, не после «волны» |
+| P02 | Названа задача E, она `blocked_by` неназванной F | F не подтягивается; E `blocked` в `blocked_outside`, одна строка в первом статусе; остальные задачи идут |
+| P03 | Одна большая задача T3 | Planner: подзадача-контракт первой, затем подзадачи размера dev-lead с областями записи; parent сохраняет их в memo (`part_of`, `blocked_by`); после интеграции контракта остальные стартуют параллельно |
+| P04 | Одна задача T1 в одной области | Без декомпозиции: одна ветка, один dev-lead; integrator вливает одну ветку, final verifier проверяет |
+| P05 | Две задачи с общим `src/registry.ts` без смысловой связи | Ребро soft, обе параллельно; integrator решает очевидный текстовый конфликт, решение записано в `conflicts_ref`; final verifier сверяет его с diff |
+| P06 | Смысловой конфликт или красные проверки после слияния ветки | `git merge --abort`, ветка в `returned`; repair у автора: `git merge <integration_tip>` в свою ветку, повторная сдача; в интеграции нет сломанного коммита |
+| P07 | Клиент даёт изоляцию / не даёт, но child работает в каталоге / не даёт ничего | `worktree: client` с `switch -c` на `base_oid` / parent `git worktree add` вне рабочего дерева / линейная policy с одной строкой пользователю |
+| P08 | Writer сдаёт `branch_ready` с грязным worktree или tip ≠ `branch_tip_oid` | Integrator: blocked/drift, не сливает; parent возвращает writer |
+| P09 | Все узлы integrated | Один независимый final verifier (не автор/integrator) на закреплённом tip; без per-branch verifier; pass → accepted всего запуска; `target_ref` не сдвинут |
+| P10 | После acceptance: два влитых чистых worktree, один отклонённый с коммитами, один с незакоммиченными файлами | Первые два удалены без `--force`, ветки `-d`; два других и ветка интеграции — в таблице «worktree/ветка · состояние · почему · что сделать» |
+| P11 | Режим fast с явным N=2, готово 4 узла | Первыми два узла критического пути; следующий — сразу при освобождении слота |
+| P12 | Две задачи пишут в одну тестовую БД / фиксированный порт | Ресурс вне worktree: уникальный ресурс на worktree либо ребро hard; не параллельная запись в общий ресурс |
+
+Обязательные F/GitCLI: две ветки от общего `start_oid` → integration `--no-ff --no-commit` +
+проверка + commit; конфликт в общем файле; `merge --abort` при красной проверке; repair
+слиянием tip интеграции в ветку задачи; final verifier: first-parent цепь, второй родитель =
+`branch_tip_oid`, diff = manifest + решения; уборка `worktree remove`/`branch -d` и отказ Git
+на грязном worktree без `--force`.
 
 ## Три условия малого контекста parent
 

@@ -48,6 +48,16 @@ Details не переписываются на status. Submission закрепл
 repair получает новые assignment/artifact_version/detail/receipt IDs. Старые доступны verifier,
 не исправляются задним числом; writer/версия прежнего ID молча не меняются.
 
+## Приём задач из memo
+
+Берите только задачи, названные пользователем (ID, эпик/root и его `part_of` подзадачи), каждую
+адресным get. Recall не расширяет набор. `blocked_by` внутри набора — рёбра `hard` карты;
+`blocked_by` на задачу вне набора — узел `blocked` в `work_map.blocked_outside`, без
+подтягивания блокера. Подзадачи декомпозиции большой задачи parent сохраняет как task
+(type=task, `part_of` к большой задаче, `blocked_by` по рёбрам `hard`), предложенные planner
+в его detail. Status каждой задачи ведите как обычно: `doing` с branch задачи при старте,
+`done` — после acceptance всего запуска по проектному циклу.
+
 ## Нативные типы, статусы и зависимости
 
 Root: kind=task, type=epic, summary обязателен, status=todo. Control: kind=task, type=task,
@@ -75,8 +85,13 @@ project: <проверенный корень>
 scope: <project:...>
 parent_session_id: <фактический parent либо null, если клиент ID не даёт>
 runtime: <client, transport session|delegated, capabilities, mapping, limits — см. [runtime](runtime.md)>
-mode: economy # fast
-active_limit: 2 # economy: 2; fast: null (безлимит) либо явный положительный целый N
+mode: fast # economy только по просьбе пользователя
+active_limit: null # fast: null (безлимит) либо явный положительный целый N; economy: 2
+git_policy: worktree-integration/v1 # start-target-linear-delivery/v1 | not_applicable
+integration_ref: <refs/heads/orch/<run>/integration либо null>
+work_map_ref: <detail полной карты зависимостей либо null>
+work_map: <компактная карта: узлы со статусами writing|branch_ready|integrated|returned|blocked, рёбра hard/soft, critical_path; см. parallel-delivery.md>
+worktrees: [] # {task, path, branch, provided_by, state} — для уборки и таблицы остатков
 phase: planning # running | paused | accepted
 revision: 0 # номер изменения, не lock
 current_frontier: [] # только актуальные control IDs и ближайшие зависимости

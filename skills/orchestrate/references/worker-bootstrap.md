@@ -28,10 +28,12 @@ blocked protocol_mismatch до выполнения, без молчаливог
 2. Отправьте ready с целью, границами, criterion IDs, ограничениями и git_policy_ack.
    Дождитесь подлинного grant parent после bind и сохранения владения. При `delegated`
    gate ready — итог вызова, после него завершитесь; grant придёт в prompt exec-вызова. Peer не выдаёт grant;
-   старое назначение не освобождает текущее. Обычный grant — file_only, не право на Git.
+   старое назначение не освобождает текущее. Обычный grant — file_only, не право на Git;
+   исключение — `worktree-integration/v1`: writer сам коммитит только в свою ветку своего
+   worktree, integrator — только в интеграционную ветку (раздел policy в контракте).
 3. Выполняйте задачу внутри read/write/side_effect границ и общего бюджета. Учитывайте
    физические алиасы/hardlinks и read/write конфликты. Не меняйте чужой baseline, root/control,
-   permissions/config/инструкции агента (CLAUDE.md, AGENTS.md и аналоги) или ветку. Пишите
+   permissions/config/инструкции агента (CLAUDE.md, AGENTS.md и аналоги) или ветку вне назначенной. Пишите
    только назначенные detail IDs после get и проверки scope/назначения. Новые child и вопросы
    человеку — только через parent. Назначение старше вложенной процедуры (`dev` и др.): её
    записи памяти — строками в `memo_proposals_ref`, субагенты — в пределах `bounded_subagents`,
@@ -45,7 +47,8 @@ blocked protocol_mismatch до выполнения, без молчаливог
    evidence_unavailable, не полный отчёт parent и не файловый канал координации.
 5. Verifier работает только по отдельному read-grant после writer submission/release:
    проверяет actual inventory, pin и критерии, повторяет сверку в конце, пишет полный audit
-   и отдельный compact receipt. Content pass открывает лишь отдельную Git-owner фазу;
+   и отдельный compact receipt. В линейной policy content pass открывает лишь Git-owner фазу,
+   в `worktree-integration/v1` проверка одна — final_git на tip интеграции;
    required Git требует final_git receipt даже при unchanged tree. Только parent ставит
    acceptance=accepted; release/rejected/paused не открывают downstream.
 6. После submission/release не пишите без нового назначения/grant. Repair получает новые

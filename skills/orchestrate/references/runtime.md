@@ -17,6 +17,7 @@ Agent или другого клиента с поддержкой Agent Skills.
 | WAKE | Push-уведомление о сообщении или завершении child | Событие самого клиента, не опрос |
 | RESULT | Возврат итогового сообщения child как результата вызова parent | Итог связан с конкретным вызовом; разговор child завершён при возврате |
 | MEMO | MCP memo у parent и, по возможности, у child | Схемы `memory_*`; наследует ли child MCP-серверы parent |
+| WORKTREE | Отдельный Git worktree у каждого writer | Изоляция клиента (worktree-режим субагента/сессии) либо child может работать в каталоге, который parent создал `git worktree add`; child видит свой git-dir и общий common-dir |
 
 SPAWN — механизм самого клиента-хоста, видимый и подчинённый его правам. Процессы, запущенные
 в обход клиента через shell (CLI другого агента, tmux, SDK-скрипты), новый MCP или внешний API,
@@ -42,11 +43,18 @@ SPAWN — механизм самого клиента-хоста, видимы�
 runtime:
   client: <имя клиента, как его сообщает среда, либо unknown>
   transport: session # delegated
-  capabilities: {spawn: true, channel: true, reconcile: true, wake: true, result: false, child_memo: true}
-  mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>}
+  capabilities: {spawn: true, channel: true, reconcile: true, wake: true, result: false, child_memo: true, worktree: client} # worktree: client | parent | none
+  mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>, worktree: <параметр изоляции клиента | git worktree add | null>}
   limits: [] # например: нет вложенной делегации, нет вопросов человеку у child, предел параллельных субагентов
   model_map: {top: <ID|null>, coding: <ID|null>, light: <ID|null>, selection: <chosen|unsupported>} # см. model-selection.md
 ```
+
+WORKTREE выбирает Git policy ([параллельная доставка](parallel-delivery.md#4-worktree-и-ветки)):
+`client` или `parent` — `worktree-integration/v1`; `none` — запасная линейная policy с
+последовательной записью. Изоляция клиента предпочтительнее: клиент сам знает, где child
+работает. Если клиент создаёт worktree от своей точки (например, от HEAD parent), child
+переключается на ветку от `base_oid`, как сказано в контракте. Worktree, который клиент
+удаляет сам при отсутствии изменений, не мешает: результат хранится в ветке задачи.
 
 Transport фиксируется для каждого назначения. Resume в другом клиенте может выбрать новый
 transport для новых назначений; незавершённые назначения сверяются по своему сохранённому mapping.
@@ -77,8 +85,9 @@ transport для новых назначений; незавершённые н�
    с brief и, при наличии memo, с control через get; затем выполняет работу и возвращает
    итог — coordinator-summary или receipt с release. `read-grant` и `git-grant` идут так же.
 5. **Слоты.** Gate и exec занимают слот; между ними слот остаётся зарезервирован.
-   Параллельные вызовы допустимы, только если клиент действительно выполняет их одновременно,
-   и в пределах `active_limit`.
+   Независимые вызовы отправляйте **одновременно** (в одном ходе), если клиент выполняет их
+   параллельно, в пределах `active_limit`; последовательный запуск независимого — потеря
+   времени. Gate и exec одного назначения разделены, но gate разных назначений — нет.
 6. **Вопрос во время exec.** CHANNEL нет, поэтому `question`/`blocked` завершают вызов итогом
    с остановленными процессами и manifest частичных изменений. Если записей и side effects
    не было, parent может повторить gate/exec того же назначения с уточнением в `decisions`.
@@ -113,7 +122,7 @@ transport для новых назначений; незавершённые н�
 | Клиент | Обычно | Что проверить |
 |---|---|---|
 | Claude Code Desktop | `session` | [Отдельный адаптер](runtime-claude-code-desktop.md) |
-| Claude Code CLI/IDE/web без инструментов сессий | `delegated` | Субагент со свежим контекстом и возвратом итога; фоновые субагенты с уведомлением = WAKE |
+| Claude Code CLI/IDE/web без инструментов сессий | `delegated` | Субагент со свежим контекстом и возвратом итога; фоновые субагенты с уведомлением = WAKE; worktree-изоляция субагента = WORKTREE `client` (создаётся от текущего HEAD — child переключается на `base_oid`) |
 | DeepSeek Harness (dsh) | `delegated` | Subagent в режиме fresh context, не fork беседы; MCP memo подключён в профиле/patch-слое и виден child |
 | Hermes Agent | `delegated` | Делегирование задачи субагенту с возвратом итога; доступ child к MCP memo и предел параллельных субагентов |
 | Другой клиент | по таблице возможностей | Нет ни `session`, ни `delegated` — `blocked: no_child_runtime` |
