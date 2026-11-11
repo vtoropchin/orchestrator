@@ -66,25 +66,40 @@ if [ -e "$file" ] && [ ! -r "$file" ]; then
 fi
 
 # Разметка файла: маркеры и раздел «Модели child», написанный вручную вне маркеров.
-# Вывод: begins ends begin_line end_line headings heading_line section_end.
-scan='0 0 0 0 0 0 0'
+# Вывод: begins ends begin_line end_line headings heading_line section_end open_fence_line.
+scan='0 0 0 0 0 0 0 0'
 if [ -f "$file" ]; then
   scan=$(LC_ALL=C awk -v b="$begin_mark" -v e="$end_mark" '
     { sub(/\r$/, "") }
-    # Блоки кода: заголовки и маркеры в них не считаются, строки — содержимое раздела.
-    /^[ \t]*(```|~~~)/ { fence = !fence; if (sec) se = NR; next }
-    fence { if (sec) se = NR; next }
+    # Маркеры ищутся всегда: это уникальные комментарии, блок кода их не прячет.
     index($0, b) == 1 { nb++; bl = NR; inside = 1; next }
     index($0, e) == 1 { ne++; if (!el) el = NR; inside = 0; next }
     inside { next }
-    sec && /^##?[ \t]/ { sec = 0 }
-    /^##[ \t]+Модели child/ { nh++; hl = NR; sec = 1; se = NR; next }
+    # Блоки кода (CommonMark) — только для поиска ручного раздела. Ограда: до 3 пробелов
+    # отступа и 3+ одинаковых ` или ~; у ``` в остатке строки нет `. Закрывает тот же символ
+    # не короче, без текста после. Строки блока кода — содержимое раздела, не заголовки.
+    fc == "" && match($0, /^ ? ? ?(```+|~~~+)/) {
+      f = substr($0, RSTART, RLENGTH); sub(/^ +/, "", f)
+      if (!(substr(f, 1, 1) == "`" && index(substr($0, RSTART + RLENGTH), "`"))) {
+        fc = substr(f, 1, 1); fl = length(f); fo = NR; if (sec) se = NR; next
+      }
+    }
+    fc != "" {
+      if (match($0, /^ ? ? ?(```+|~~~+)[ \t]*$/)) {
+        f = $0; gsub(/[ \t]/, "", f)
+        if (substr(f, 1, 1) == fc && length(f) >= fl) fc = ""
+      }
+      if (sec) se = NR
+      next
+    }
+    sec && /^ ? ? ?##?[ \t]/ { sec = 0 }
+    /^ ? ? ?##[ \t]+Модели child/ { nh++; hl = NR; sec = 1; se = NR; next }
     sec && !/^[ \t]*$/ { se = NR }
-    END { printf "%d %d %d %d %d %d %d\n", nb, ne, bl, el, nh, hl, se }
+    END { printf "%d %d %d %d %d %d %d %d\n", nb, ne, bl, el, nh, hl, se, (fc != "" ? fo : 0) }
   ' "$file")
 fi
 set -- $scan
-begins=$1 ends=$2 begin_line=$3 end_line=$4 headings=$5 heading_line=$6 section_end=$7
+begins=$1 ends=$2 begin_line=$3 end_line=$4 headings=$5 heading_line=$6 section_end=$7 open_fence=$8
 
 if [ "$begins" -ne "$ends" ] || [ "$begins" -gt 1 ] ||
   { [ "$begins" -eq 1 ] && [ "$end_line" -lt "$begin_line" ]; }; then
@@ -107,6 +122,12 @@ elif [ "$headings" -gt 1 ]; then
 elif [ "$headings" -eq 1 ]; then
   mode=adopt
   from=$heading_line to=$section_end
+fi
+# Незакрытый блок кода: дописанный или перенесённый блок оказался бы внутри него.
+if [ "$mode" != update ] && [ "$open_fence" -gt 0 ]; then
+  say "make install: в $file не закрыт блок кода (строка $open_fence): раздел «Модели child»" \
+    '  попал бы внутрь него. Закройте блок и повторите make install; файл не изменён.' >&2
+  exit 0
 fi
 
 current=

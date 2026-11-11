@@ -159,6 +159,37 @@ class ConfigureAgentsMd(unittest.TestCase):
         self.assertTrue(after.startswith(text + "\n" + BEGIN))
         self.assertEqual(after.count("```"), 2)
 
+    def test_inline_code_is_not_a_fence(self):
+        self.file.write_text("# P\n\n```make install``` ставит набор.\n\ntext\n")
+        self.run_script(self.NEW)
+        code, out = self.run_script(["", "", ""])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.file.read_text().count(BEGIN), 1)
+        self.assertIn("Обновить блок", out)
+
+    def test_markers_found_after_unclosed_fence(self):
+        self.run_script(self.NEW)
+        self.file.write_text("```\nunclosed\n" + self.file.read_text())
+        code, out = self.run_script(["", "", ""])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.file.read_text().count(BEGIN), 1)
+        self.assertIn("Обновить блок", out)
+
+    def test_unclosed_fence_blocks_append(self):
+        text = "# P\n\n~~~~\ncode\n~~~\n"  # ~~~ короче открытия — не закрывает
+        self.file.write_text(text)
+        code, out = self.run_script(self.NEW)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.file.read_text(), text)
+        self.assertIn("не закрыт блок кода", out)
+
+    def test_mixed_fence_chars_hide_example_heading(self):
+        text = "```md\n~~~\n## Модели child (orchestrate)\n- x: top\n```\n"
+        self.file.write_text(text)
+        code, out = self.run_script(self.NEW)
+        self.assertEqual(code, 0, out)
+        self.assertTrue(self.file.read_text().startswith(text + "\n" + BEGIN))
+
     def test_fence_inside_section_blocks_adopt(self):
         text = ("## Модели child (orchestrate)\n\n- a: top\n```sh\n# переключение\n```\n"
                 "- b: light\n\n## Другое\n")
