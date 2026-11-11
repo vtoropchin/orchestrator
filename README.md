@@ -70,7 +70,7 @@ Desktop собраны в отдельном [адаптере](skills/orchestra
 
 1. Установить набор в проект — из корня проекта или из корня этого репозитория:
    ```bash
-   make -C /путь/к/skills install
+   make -C /путь/к/orchestrator install
    ```
    Первый вопрос — рабочая директория (по умолчанию — каталог, откуда запущен make);
    укажите проект. В диалоге CLI выбрать все скилы набора (`adapt`, `dev`, `clean-architecture`,
@@ -322,7 +322,13 @@ sh .claude/skills/dev/scripts/review-lint.sh
 
 ## Интерактивная установка через Make
 
-Из корня этого репозитория:
+Склонируйте репозиторий:
+
+```bash
+git clone https://github.com/vtoropchin/orchestrator.git
+```
+
+Из корня клона:
 
 ```bash
 make install
@@ -331,7 +337,7 @@ make install
 Или из любого другого каталога, например из корня проекта-потребителя:
 
 ```bash
-make -C /путь/к/skills install
+make -C /путь/к/orchestrator install
 ```
 
 Первый вопрос — «Укажите рабочую директорию»; по умолчанию подставлен каталог, откуда
@@ -394,7 +400,7 @@ Makefile не содержит собственного установщика.
 Для воспроизводимости примеры закреплены на `skills@1.7.6`.
 
 В примерах `SKILLS_REPO` — путь к клону этого репозитория, например
-`SKILLS_REPO=../Skills`.
+`SKILLS_REPO=../orchestrator`.
 
 Оба готовых пакета для Claude Code, проектная независимая копия:
 
@@ -439,14 +445,25 @@ CLI предлагает симлинки либо копирование; `--co
 
 ## Установка из GitHub
 
-Remote ещё не настроен, репозиторий не опубликован. Следующая команда — **форма будущей
-установки**, а не действующая ссылка: замените `OWNER`, `REPO` и `main` фактическими значениями.
+Репозиторий: [github.com/vtoropchin/orchestrator](https://github.com/vtoropchin/orchestrator).
+Клон не нужен: CLI скачивает пакеты сам. Команды выполняются из корня проекта-потребителя.
+
+Указывайте именно каталог `skills/` ветки `master`. Короткая форма `vtoropchin/orchestrator`
+даст CLI весь репозиторий, и он найдёт ещё служебные скилы из `.claude/skills/` и `.agents/skills/`.
+
+Посмотреть список без установки:
 
 ```bash
-DISABLE_TELEMETRY=1 npx skills@1.7.6 add https://github.com/OWNER/REPO/tree/main/skills --skill my-skill -a claude-code
+DISABLE_TELEMETRY=1 npx skills@1.7.6 add https://github.com/vtoropchin/orchestrator/tree/master/skills --list
 ```
 
-Перед публикацией проверьте её из отдельного проекта-потребителя. Наличие совместимого
+Оба готовых пакета для Claude Code, проектная независимая копия:
+
+```bash
+DISABLE_TELEMETRY=1 npx --yes skills@1.7.6 add https://github.com/vtoropchin/orchestrator/tree/master/skills --skill orchestrate session-worker -a claude-code --copy -y
+```
+
+Другие клиенты и отдельные скилы — те же флаги, что в разделе выше. Наличие совместимого
 формата не означает автоматическое включение репозитория в каталог skills.sh.
 
 ## Среда авторинга Claude Code
