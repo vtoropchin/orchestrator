@@ -125,7 +125,8 @@ skills/                         распространяемые скилы: п�
 templates/skill/SKILL.md.template  шаблон для авторинга, не готовый скил
 scripts/check-skills.sh          проверка метаданных публичного каталога
 scripts/configure-jev.sh         шаг make install: ключ и адрес Jev в .env проекта
-tests/orchestrate/               тесты jev.py и configure-jev.sh без сети
+scripts/configure-agents-md.sh   шаг make install: классы моделей child в AGENTS.md проекта
+tests/orchestrate/               тесты jev.py, configure-jev.sh и configure-agents-md.sh без сети
 .agents/skills/                  служебная установка набора (dev, adapt и др.) и memo для DeepSeek Harness
 .claude/skills/                  симлинки на .agents/skills/, memo и skill-creator для Claude Code
 .claude/agents/                  служебные агенты разработки
@@ -339,14 +340,28 @@ DeepSeek Harness (dsh) в списке агентов CLI отдельно не 
 
 Если в проект установлен `orchestrate`, `make install` предложит настроить Jev — дешёвую
 модель-«решатель», с которой оркестратор калибрует выбор модели и экономит лимиты сильных
-моделей ([jev.md](skills/orchestrate/references/jev.md)). Спрашиваются адрес API
-(по умолчанию `https://jev-ai.pro/api`), модель (`jev-latest`) и ключ (ввод скрыт); они
+моделей ([jev.md](skills/orchestrate/references/jev.md)). Сначала выбирается решатель:
+облачный Jev или открытый [Kev](https://github.com/jaredpalmer/kev) на этом компьютере. Затем
+спрашиваются адрес API (Jev — `https://jev-ai.pro/api`, Kev — `http://127.0.0.1:8009`),
+модель (`jev-latest` или `kev-latest`) и ключ (ввод скрыт; у Kev необязателен, без него
+пишется `local`). Для Kev в конце печатается инструкция: клонировать репозиторий, `uv sync`
+и запустить `kev.serve` на порту из адреса; сам сервер `make install` не ставит. Значения
 записываются в `.env` проекта (`JEV_AI_BASE_URL`, `JEV_AI_MODEL`, `JEV_AI_API_KEY`, права
 `0600`, остальные строки сохраняются), `.env` по согласию добавляется в `.gitignore`, затем
 можно проверить подключение запросом списка моделей — баланс он не тратит. Отказ — оркестратор
 работает без Jev. Повторить отдельно: `sh scripts/configure-jev.sh <проект>`.
 Если ключ уже есть в окружении или в `.env` проекта, `make install` ничего не спрашивает
 и не меняет; перенастройка — правкой `JEV_AI_*` в `.env`.
+
+Затем `make install` предлагает записать в `AGENTS.md` проекта раздел «Модели child» —
+классы моделей субагентов (`<ID модели>: light|coding|top`, по желанию `top: только
+эскалация`), которые вводите вы. Без него `orchestrate` даёт модели, известной только по
+имени, младший класс и спрашивает о ней в каждой сессии. Раздел стоит между маркерами
+`<!-- skills:orchestrate-models:begin … -->` и `<!-- skills:orchestrate-models:end -->`:
+при повторной установке текст набора внутри них заменяется, прежние классы предлагаются по
+умолчанию, всё вне маркеров не меняется. Раздел, написанный вручную без маркеров, по
+согласию переносится в блок. Повреждённые маркеры или ссылка вместо файла — файл не
+трогается. Повторить отдельно: `sh scripts/configure-agents-md.sh <проект>`.
 
 Источник — только публичный каталог `skills/` этого репозитория (определяется по
 расположению Makefile), без служебных скилов `.claude/skills/`. Диалог и запуск CLI —

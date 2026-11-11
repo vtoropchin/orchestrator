@@ -3,7 +3,8 @@
 # Спрашивает рабочую директорию и запускает CLI из неё: проектная установка
 # попадает в выбранный каталог. После установки сообщает, что получил
 # DeepSeek Harness (dsh) и, если поставлен orchestrate, предлагает настроить Jev
-# (scripts/configure-jev.sh). Собственного установщика здесь нет.
+# (scripts/configure-jev.sh) и записать классы моделей субагентов в AGENTS.md
+# (scripts/configure-agents-md.sh). Собственного установщика здесь нет.
 #
 # Использование: sh scripts/install.sh <каталог skills/> <директория по умолчанию>
 set -eu
@@ -94,6 +95,8 @@ fi
 # orchestrate может брать суждения у Jev: ключ и адрес нужны в .env проекта.
 if [ -f "$skills_root/orchestrate/SKILL.md" ] || [ -f "$work_dir/.claude/skills/orchestrate/SKILL.md" ]; then
   sh "$script_dir/configure-jev.sh" "$work_dir" "$skills_dir/orchestrate/scripts/jev.py"
+  # Классы моделей субагентов — блок между маркерами в AGENTS.md проекта.
+  sh "$script_dir/configure-agents-md.sh" "$work_dir"
 elif [ -f "$skills_dir/orchestrate/SKILL.md" ]; then
   printf 'make install: orchestrate не найден в проекте. Если он установлен глобально, настроить\n  %s\n' \
     "Jev для проекта можно так: sh $script_dir/configure-jev.sh $work_dir"
