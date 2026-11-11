@@ -110,6 +110,89 @@ class ConfigureAgentsMd(unittest.TestCase):
         self.assertTrue(text.startswith("# P\n\n" + BEGIN))
         self.assertTrue(text.endswith("\n## Другое\n\nkeep\n"))
 
+    def test_backslash_in_project_path_keeps_section(self):
+        self.dir = Path(self._tmp.name) / "a\\nb"
+        self.dir.mkdir()
+        self.file = self.dir / "AGENTS.md"
+        self.run_script(self.NEW)
+        code, out = self.run_script(["", "", ""])
+        self.assertEqual(code, 0, out)
+        self.assertIn("- deepseek-flash: coding", block_of(self.file.read_text()))
+
+    def test_adopt_with_own_text_changes_nothing(self):
+        text = ("## Модели child (orchestrate)\n\n- deepseek-flash: coding\n"
+                "Важно: не использовать b.\n\n## Другое\n")
+        self.file.write_text(text)
+        code, out = self.run_script(["y", "", ""])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.file.read_text(), text)
+        self.assertIn("Важно: не использовать b.", out)
+
+    def test_duplicate_check_is_literal(self):
+        code, out = self.run_script(["y", "gpt-411: coding", "gpt-4.1: top", "", "n"])
+        self.assertEqual(code, 0, out)
+        block = block_of(self.file.read_text())
+        self.assertIn("- gpt-411: coding", block)
+        self.assertIn("- gpt-4.1: top", block)
+        code, out = self.run_script(["y", "n", "a.b: top", "a.b: coding", "", "n"])
+        self.assertIn("уже введена", out)
+
+    def test_missing_or_dash_project_dir(self):
+        proc = subprocess.run(["sh", str(SCRIPT), str(self.dir / "nope")], input=b"y\n",
+                              capture_output=True, timeout=60)
+        self.assertEqual(proc.returncode, 0)
+        dash = self.dir / "-p"
+        dash.mkdir()
+        proc = subprocess.run(["sh", str(SCRIPT), "-p"], cwd=self.dir,
+                              input="\n".join(self.NEW).encode() + b"\n",
+                              capture_output=True, timeout=60)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("- deepseek-flash: coding", block_of((dash / "AGENTS.md").read_text()))
+
+    def test_fenced_example_is_not_a_section(self):
+        text = ("# P\n\n```markdown\n## Модели child (orchestrate)\n- x: top\n```\n\n"
+                "## Сборка\n\nmake\n")
+        self.file.write_text(text)
+        code, out = self.run_script(self.NEW)
+        self.assertEqual(code, 0, out)
+        after = self.file.read_text()
+        self.assertTrue(after.startswith(text + "\n" + BEGIN))
+        self.assertEqual(after.count("```"), 2)
+
+    def test_fence_inside_section_blocks_adopt(self):
+        text = ("## Модели child (orchestrate)\n\n- a: top\n```sh\n# переключение\n```\n"
+                "- b: light\n\n## Другое\n")
+        self.file.write_text(text)
+        code, out = self.run_script(["y", "", ""])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.file.read_text(), text)
+
+    def test_update_keeps_missing_final_newline(self):
+        self.run_script(self.NEW)
+        self.file.write_text(self.file.read_text() + "\ntail")
+        code, out = self.run_script(["", "", ""])
+        self.assertEqual(code, 0, out)
+        self.assertTrue(self.file.read_text().endswith(END + "\n\ntail"))
+
+    def test_ids_with_colon_and_brackets(self):
+        code, out = self.run_script(["y", "qwen2.5:7b : light", "claude-opus-4-6[1m]: top", "", "n"])
+        self.assertEqual(code, 0, out)
+        block = block_of(self.file.read_text())
+        self.assertIn("- qwen2.5:7b: light", block)
+        self.assertIn("- claude-opus-4-6[1m]: top", block)
+        code, out = self.run_script(["", "", ""])
+        self.assertEqual(block_of(self.file.read_text()), block)
+
+    def test_unparsed_list_line_in_block_changes_nothing(self):
+        self.run_script(self.NEW)
+        text = self.file.read_text().replace("- deepseek-v4-pro: top",
+                                             "- deepseek-v4-pro: top\n- my model: best")
+        self.file.write_text(text)
+        code, out = self.run_script(["", "", ""])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.file.read_text(), text)
+        self.assertIn("my model: best", out)
+
     def test_broken_markers_change_nothing(self):
         for text in (BEGIN + " -->\n- a: top\n",
                      BEGIN + " -->\n" + END + "\n" + BEGIN + " -->\n" + END + "\n",
