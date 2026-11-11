@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="340" viewBox="0 0 860 340" role="img" aria-label="Пользователь сначала запускает make install, который копирует скилы и по желанию пишет .env для Jev и раздел «Модели child» в AGENTS.md; затем запускает adapt, который подключает memo через memo init и пишет правила, REVIEW.md и агентов.">
+<style>
+svg { --bg: #fbfaf7;
+    --fg: #1d1f23;
+    --muted: #6b6f76;
+    --surface: #ffffff;
+    --line: #d9d6cf;
+    --accent: #b4561d;
+    --accent-soft: #fbeee5; color: var(--fg); }
+@media (prefers-color-scheme: dark) { svg { --bg: #17181b;
+    --fg: #e8e6e1;
+    --muted: #9a9ea6;
+    --surface: #202226;
+    --line: #3a3d43;
+    --accent: #f0955a;
+    --accent-soft: #3a2a20; } }
+text { fill: currentColor; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.t { font-size: 13px; font-weight: 600; }
+.s { font-size: 11.5px; }
+.m { font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mu { fill: var(--muted); }
+.node { fill: var(--surface); stroke: currentColor; stroke-width: 1.2; }
+.opt { stroke-dasharray: 5 4; }
+.key { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.8; }
+.zone { fill: none; stroke: var(--line); stroke-width: 1.4; stroke-dasharray: 6 5; }
+.edge { fill: none; stroke: currentColor; stroke-width: 1.3; }
+.lane { fill: none; stroke: currentColor; stroke-width: 2; }
+.lane-mu { fill: none; stroke: var(--muted); stroke-width: 2; }
+.dot { fill: currentColor; }
+.dot-key { fill: var(--accent); }
+.div { stroke: var(--line); stroke-width: 1; }
+</style>
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+
+  <rect class="node" x="20" y="130" width="120" height="56" rx="8"/>
+  <text class="t" x="80" y="163" text-anchor="middle">Пользователь</text>
+
+  <polyline class="edge" points="140,158 165,158 165,73 278,73" marker-end="url(#a1)"/>
+  <polyline class="edge" points="140,158 165,158 165,240 278,240" marker-end="url(#a1)"/>
+  <text class="s" x="222" y="65" text-anchor="middle">1. установка</text>
+  <text class="s" x="222" y="232" text-anchor="middle">2. /adapt</text>
+
+  <rect class="node" x="280" y="45" width="170" height="56" rx="8"/>
+  <text class="t" x="365" y="68" text-anchor="middle">make install</text>
+  <text class="s mu" x="365" y="88" text-anchor="middle">skills@1.7.6 из skills/</text>
+
+  <rect class="node" x="280" y="212" width="170" height="56" rx="8"/>
+  <text class="t" x="365" y="235" text-anchor="middle">adapt</text>
+  <text class="s mu" x="365" y="255" text-anchor="middle">в агенте проекта</text>
+
+  <!-- make install пишет -->
+  <line class="edge" x1="450" y1="73" x2="500" y2="73"/>
+  <line class="edge" x1="500" y1="31" x2="500" y2="115"/>
+  <line class="edge" x1="500" y1="31" x2="518" y2="31" marker-end="url(#a1)"/>
+  <line class="edge" x1="500" y1="73" x2="518" y2="73" marker-end="url(#a1)"/>
+  <line class="edge" x1="500" y1="115" x2="518" y2="115" marker-end="url(#a1)"/>
+  <text class="s" x="474" y="66" text-anchor="middle">пишет</text>
+
+  <rect class="node" x="520" y="14" width="320" height="34" rx="6"/>
+  <text class="s" x="534" y="35">скилы набора в .agents/ и .claude/skills</text>
+  <rect class="node opt" x="520" y="56" width="320" height="34" rx="6"/>
+  <text class="s" x="534" y="77">.env — ключ облачного Jev или адрес Kev</text>
+  <rect class="node opt" x="520" y="98" width="320" height="34" rx="6"/>
+  <text class="s" x="534" y="119">AGENTS.md — раздел «Модели child»</text>
+
+  <!-- adapt пишет -->
+  <line class="edge" x1="450" y1="240" x2="500" y2="240"/>
+  <line class="edge" x1="500" y1="194" x2="500" y2="314"/>
+  <line class="edge" x1="500" y1="194" x2="518" y2="194" marker-end="url(#a1)"/>
+  <line class="edge" x1="500" y1="234" x2="518" y2="234" marker-end="url(#a1)"/>
+  <line class="edge" x1="500" y1="274" x2="518" y2="274" marker-end="url(#a1)"/>
+  <line class="edge" x1="500" y1="314" x2="518" y2="314" marker-end="url(#a1)"/>
+  <text class="s" x="474" y="233" text-anchor="middle">пишет</text>
+
+  <rect class="node opt" x="520" y="178" width="320" height="32" rx="6"/>
+  <text class="s" x="534" y="198">memo init → MCP memo и скилы memo</text>
+  <rect class="node" x="520" y="218" width="320" height="32" rx="6"/>
+  <text class="s" x="534" y="238">AGENTS.md / CLAUDE.md — правила</text>
+  <rect class="node" x="520" y="258" width="320" height="32" rx="6"/>
+  <text class="s" x="534" y="278">REVIEW.md — риск по путям</text>
+  <rect class="node" x="520" y="298" width="320" height="32" rx="6"/>
+  <text class="s" x="534" y="318">.claude/agents, проверка зависимостей</text>
+</svg>

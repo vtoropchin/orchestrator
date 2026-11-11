@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="330" viewBox="0 0 980 330" role="img" aria-label="Слева основная схема worktree-integration: каждая задача в своей ветке, integrator сливает их в ветку интеграции, verifier проверяет её tip, целевая ветка меняется только по решению пользователя. Справа запасная линейная схема: writer в общем checkout, content pass, Git-owner коммитит в целевую ветку, final_git.">
+<style>
+svg { --bg: #fbfaf7;
+    --fg: #1d1f23;
+    --muted: #6b6f76;
+    --surface: #ffffff;
+    --line: #d9d6cf;
+    --accent: #b4561d;
+    --accent-soft: #fbeee5; color: var(--fg); }
+@media (prefers-color-scheme: dark) { svg { --bg: #17181b;
+    --fg: #e8e6e1;
+    --muted: #9a9ea6;
+    --surface: #202226;
+    --line: #3a3d43;
+    --accent: #f0955a;
+    --accent-soft: #3a2a20; } }
+text { fill: currentColor; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.t { font-size: 13px; font-weight: 600; }
+.s { font-size: 11.5px; }
+.m { font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mu { fill: var(--muted); }
+.node { fill: var(--surface); stroke: currentColor; stroke-width: 1.2; }
+.opt { stroke-dasharray: 5 4; }
+.key { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.8; }
+.zone { fill: none; stroke: var(--line); stroke-width: 1.4; stroke-dasharray: 6 5; }
+.edge { fill: none; stroke: currentColor; stroke-width: 1.3; }
+.lane { fill: none; stroke: currentColor; stroke-width: 2; }
+.lane-mu { fill: none; stroke: var(--muted); stroke-width: 2; }
+.dot { fill: currentColor; }
+.dot-key { fill: var(--accent); }
+.div { stroke: var(--line); stroke-width: 1; }
+</style>
+  <defs>
+    <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+
+  <text class="t" x="20" y="24">worktree-integration/v1 — по умолчанию</text>
+  <text class="t" x="520" y="24">start-target-linear-delivery/v1 — запасная</text>
+  <line class="div" x1="500" y1="10" x2="500" y2="320"/>
+
+  <!-- целевая ветка -->
+  <text class="s mu" x="100" y="58">целевая ветка (target_ref)</text>
+  <line class="lane-mu" x1="40" y1="70" x2="470" y2="70"/>
+  <circle class="dot" cx="60" cy="70" r="5"/>
+  <text class="m mu" x="60" y="58" text-anchor="middle">start_oid</text>
+
+  <!-- ветка интеграции -->
+  <path class="lane" d="M60,70 C60,105 75,120 100,120 L440,120"/>
+  <text class="m" x="110" y="112">orch/&lt;run&gt;/integration</text>
+  <circle class="dot" cx="280" cy="120" r="5"/>
+  <circle class="dot" cx="380" cy="120" r="5"/>
+  <text class="s" x="280" y="108" text-anchor="middle">merge</text>
+  <text class="s" x="380" y="108" text-anchor="middle">merge</text>
+  <circle class="dot-key" cx="440" cy="120" r="8"/>
+  <text class="s" x="440" y="146" text-anchor="middle">verifier</text>
+  <text class="m" x="440" y="160" text-anchor="middle">final_git</text>
+
+  <!-- по решению пользователя -->
+  <line class="edge opt" x1="452" y1="112" x2="452" y2="77" marker-end="url(#a3)"/>
+  <text class="s" x="444" y="92" text-anchor="end">по решению пользователя</text>
+
+  <!-- ветки задач -->
+  <path class="lane" d="M110,120 C120,150 125,175 145,175 L250,175 C268,175 275,150 280,120"/>
+  <circle class="dot" cx="175" cy="175" r="3.5"/>
+  <circle class="dot" cx="215" cy="175" r="3.5"/>
+  <text class="m mu" x="150" y="195">orch/&lt;run&gt;/A</text>
+
+  <path class="lane" d="M100,120 C108,190 112,235 135,235 L350,235 C368,235 375,170 380,120"/>
+  <circle class="dot" cx="200" cy="235" r="3.5"/>
+  <circle class="dot" cx="250" cy="235" r="3.5"/>
+  <circle class="dot" cx="300" cy="235" r="3.5"/>
+  <text class="m mu" x="150" y="255">orch/&lt;run&gt;/B</text>
+
+  <text class="s" x="40" y="290">dev-lead коммитит только в свою ветку;</text>
+  <text class="s" x="40" y="307">integrator сливает --no-ff и гоняет быстрые проверки.</text>
+
+  <!-- запасная схема -->
+  <rect class="node" x="560" y="46" width="360" height="40" rx="7"/>
+  <text class="s" x="740" y="71" text-anchor="middle">writer — общий checkout, без своих веток</text>
+  <line class="edge" x1="740" y1="86" x2="740" y2="104" marker-end="url(#a3)"/>
+  <rect class="node" x="560" y="106" width="360" height="40" rx="7"/>
+  <text class="s" x="740" y="131" text-anchor="middle">verifier — content pass по read-grant</text>
+  <line class="edge" x1="740" y1="146" x2="740" y2="164" marker-end="url(#a3)"/>
+  <rect class="node" x="560" y="166" width="360" height="40" rx="7"/>
+  <text class="s" x="740" y="191" text-anchor="middle">Git-owner — git-grant, commit в target_ref</text>
+  <line class="edge" x1="740" y1="206" x2="740" y2="224" marker-end="url(#a3)"/>
+  <rect class="key" x="560" y="226" width="360" height="40" rx="7"/>
+  <text class="s" x="740" y="251" text-anchor="middle">verifier — final_git receipt</text>
+  <text class="s mu" x="740" y="295" text-anchor="middle">запись строго по очереди</text>
+</svg>

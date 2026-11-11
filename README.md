@@ -33,6 +33,46 @@ Architecture*, ставится в проект целиком (см. [ниже]
 Claude Code, DeepSeek Harness, Hermes Agent и другие клиенты с поддержкой Agent Skills.
 Установка скилов не устанавливает MCP и не выдаёт доступы.
 
+## Схема работы
+
+Набор работает в два этапа. Сначала его ставят в проект и подключают к агенту
+(`make install`, затем `adapt`). Потом задачи идут через `dev` напрямую или через
+`orchestrate`, который раздаёт их дочерним агентам. Пунктир на рисунках — необязательный
+шаг или действие только по решению пользователя.
+
+### 1. Установка и подключение к проекту
+
+![Установка: make install копирует скилы и по желанию пишет .env и «Модели child», затем adapt подключает memo и пишет правила, REVIEW.md и агентов](docs/skills-map-install.svg)
+
+Шаги про Jev и «Модели child» `make install` предлагает, только если в проект поставлен
+`orchestrate`; уже настроенный ключ Jev он не трогает. `memo init` запускается, только если
+установлен agent-memory. Существующие правила и `REVIEW.md` `adapt` не перезаписывает.
+
+### 2. Работа через orchestrate
+
+![orchestrate: parent ведёт состояние в memo и раздаёт задачи child-агентам scout, planner, dev-lead, integrator и verifier](docs/skills-map-orchestrate.svg)
+
+Parent сам исходники не читает и цикл `dev` не ведёт; все child он запускает механизмом
+своего клиента — адресуемыми сессиями (`session`) или субагентами (`delegated`). Модель
+child — самая дешёвая из проходящих пороги: scout — `light`, код пишет и принимает не ниже
+`coding`, высокий риск — `top`. Готовые задачи стартуют сразу; зависимая ждёт интеграции
+своей `hard`-зависимости. Без `orchestrate` пользователь вызывает `dev` напрямую — нижняя
+часть рисунка работает так же.
+
+### 3. Git-доставка: основная и запасная схема
+
+![Git-доставка: слева worktree-integration с веткой интеграции, справа запасная линейная схема](docs/skills-map-git.svg)
+
+Основная схема даёт параллельную запись: у каждого writer свой worktree, конфликты решает
+integrator при слиянии. Целевую ветку пользователя запуск не трогает: что делать с веткой
+интеграции (влить, PR или оставить), parent спрашивает в конце. Запасная схема — когда
+отдельный worktree получить нельзя или так решил пользователь; тогда запись идёт по очереди
+и коммитит один Git-owner. В обоих случаях `acceptance=accepted` ставит только parent после
+pass от независимого verifier.
+
+Источник рисунков — [docs/skills-map.html](docs/skills-map.html) (там же таблица, где что
+описано). После правки HTML пересоберите SVG: `python3 scripts/export-skills-map.py`.
+
 ## Поддержка разных агентов
 
 Протокол v3 не зависит от клиента. Координатор в начале работы сверяет фактические
@@ -126,6 +166,7 @@ templates/skill/SKILL.md.template  шаблон для авторинга, не 
 scripts/check-skills.sh          проверка метаданных публичного каталога
 scripts/configure-jev.sh         шаг make install: ключ и адрес Jev в .env проекта
 scripts/configure-agents-md.sh   шаг make install: классы моделей child в AGENTS.md проекта
+scripts/export-skills-map.py     SVG-рисунки README из docs/skills-map.html
 tests/orchestrate/               тесты jev.py, configure-jev.sh и configure-agents-md.sh без сети
 .agents/skills/                  служебная установка набора (dev, adapt и др.) и memo для DeepSeek Harness
 .claude/skills/                  симлинки на .agents/skills/, memo и skill-creator для Claude Code
