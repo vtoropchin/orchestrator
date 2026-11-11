@@ -43,7 +43,7 @@ class ConfigureJev(unittest.TestCase):
 
     def test_defaults_and_key_are_written_privately(self):
         self.git_init()
-        code, out = self.run_script(["y", "", "", KEY, ""])
+        code, out = self.run_script(["y", "jev", "", "", KEY, ""])
         self.assertEqual(code, 0, out)
         text = self.env_file.read_text()
         self.assertIn("JEV_AI_BASE_URL=https://jev-ai.pro/api\n", text)
@@ -56,7 +56,7 @@ class ConfigureJev(unittest.TestCase):
 
     def test_other_lines_kept_and_old_jev_lines_replaced(self):
         self.env_file.write_text("OTHER=1\nexport JEV_AI_BASE_URL=old\nJEV_AI_MODEL=x\nLAST=2")
-        code, out = self.run_script(["y", "https://api.typesafe.ai/", "jev-1.14.0", KEY])
+        code, out = self.run_script(["y", "jev", "https://api.typesafe.ai/", "jev-1.14.0", KEY])
         self.assertEqual(code, 0, out)
         lines = self.env_file.read_text().splitlines()
         self.assertIn("OTHER=1", lines)
@@ -69,7 +69,7 @@ class ConfigureJev(unittest.TestCase):
     def test_binary_or_non_utf8_lines_are_kept(self):
         original = b"A=1\n# caf\xe9\nB=\x00x\nJEV_AI_MODEL=old\n"
         self.env_file.write_bytes(original)
-        code, out = self.run_script(["y", "", "", KEY])
+        code, out = self.run_script(["y", "jev", "", "", KEY])
         self.assertEqual(code, 0, out)
         data = self.env_file.read_bytes()
         for line in (b"A=1\n", b"# caf\xe9\n", b"B=\x00x\n"):
@@ -82,13 +82,13 @@ class ConfigureJev(unittest.TestCase):
         outside.write_text("keep\n")
         self.addCleanup(outside.unlink)
         (self.dir / ".gitignore").symlink_to(outside)
-        code, out = self.run_script(["y", "", "", KEY, "y"])
+        code, out = self.run_script(["y", "jev", "", "", KEY, "y"])
         self.assertEqual(code, 0, out)
         self.assertEqual(outside.read_text(), "keep\n")
 
     def test_env_directory_is_refused(self):
         self.env_file.mkdir()
-        code, out = self.run_script(["y", "", "", KEY])
+        code, out = self.run_script(["y", "jev", "", "", KEY])
         self.assertEqual(list(self.env_file.iterdir()), [])
 
     def test_configured_dotenv_asks_nothing_and_changes_nothing(self):
@@ -145,41 +145,95 @@ class ConfigureJev(unittest.TestCase):
         self.git_init()
         self.env_file.write_text("A=1\n")
         subprocess.run(["git", "-C", str(self.dir), "add", ".env"], check=True)
-        code, out = self.run_script(["y", "", "", KEY])
+        code, out = self.run_script(["y", "jev", "", "", KEY])
         self.assertEqual(code, 0)
         self.assertEqual(self.env_file.read_text(), "A=1\n")
         self.assertIn("отслеживается git", out)
 
     def test_plain_http_remote_url_is_asked_again(self):
-        code, out = self.run_script(["y", "http://example.com/api", "", "", KEY])
+        code, out = self.run_script(["y", "jev", "http://example.com/api", "", "", KEY])
         self.assertEqual(code, 0, out)
         self.assertIn("Нужен адрес https://", out)
         self.assertIn("JEV_AI_BASE_URL=https://jev-ai.pro/api", self.env_file.read_text())
 
     def test_key_with_space_is_not_written(self):
-        code, out = self.run_script(["y", "", "", "bad key"])
+        code, out = self.run_script(["y", "jev", "", "", "bad key"])
         self.assertEqual(code, 0)
         self.assertFalse(self.env_file.exists())
 
     def test_key_with_shell_metacharacters_is_not_written(self):
         for bad in ("abc;rm", "a&b", "a|b", "a(b)", "a>b"):
-            code, out = self.run_script(["y", "", "", bad])
+            code, out = self.run_script(["y", "jev", "", "", bad])
             self.assertFalse(self.env_file.exists(), bad)
 
     def test_empty_key_cancels(self):
-        code, out = self.run_script(["y", "", "", ""])
+        code, out = self.run_script(["y", "jev", "", "", ""])
         self.assertFalse(self.env_file.exists())
 
     def test_check_runs_against_api_without_printing_key(self):
         fake = FakeApi([(200, MODELS)])
         self.addCleanup(fake.close)
-        code, out = self.run_script(["y", fake.url, "", KEY, "y"], jev_py=JEV_PY)
+        code, out = self.run_script(["y", "jev", fake.url, "", KEY, "y"], jev_py=JEV_PY)
         self.assertEqual(code, 0, out)
         self.assertIn("jev-1.14.0", out)
         self.assertIn("Jev отвечает", out)
         self.assertNotIn(KEY, out)
         self.assertEqual(fake.requests[0]["auth"], "Bearer " + KEY)
 
+
+    def test_kev_defaults_local_key_and_instructions(self):
+        code, out = self.run_script(["y", "kev", "", "", "", "n"], jev_py=JEV_PY)
+        self.assertEqual(code, 0, out)
+        text = self.env_file.read_text()
+        self.assertIn("JEV_AI_BASE_URL=http://127.0.0.1:8009\n", text)
+        self.assertIn("JEV_AI_MODEL=kev-latest\n", text)
+        self.assertIn("JEV_AI_API_KEY=local\n", text)
+        self.assertIn("git clone https://github.com/jaredpalmer/kev", out)
+        self.assertIn("kev.serve --run jaredpalmer/kev-4b --port 8009", out)
+        self.assertNotIn("KEV_API_KEY=<", out)
+
+    def test_kev_with_key_and_port(self):
+        code, out = self.run_script(["y", "kev", "http://localhost:9010", "", KEY, "n"], jev_py=JEV_PY)
+        self.assertEqual(code, 0, out)
+        self.assertIn("JEV_AI_API_KEY=%s\n" % KEY, self.env_file.read_text())
+        self.assertIn("KEV_API_KEY=<ключ из JEV_AI_API_KEY> uv run", out)
+        self.assertIn("--port 9010", out)
+        self.assertNotIn(KEY, out)
+
+    def test_kev_check_against_local_server(self):
+        fake = FakeApi([(200, MODELS)])
+        self.addCleanup(fake.close)
+        code, out = self.run_script(["y", "kev", fake.url, "", "", "y"], jev_py=JEV_PY)
+        self.assertEqual(code, 0, out)
+        self.assertIn("Jev отвечает", out)
+        self.assertEqual(fake.requests[0]["auth"], "Bearer local")
+        self.assertIn("kev.serve", out)
+
+    def test_jev_prints_no_kev_instructions_and_bad_solver_is_asked_again(self):
+        code, out = self.run_script(["y", "x", "jev", "", "", KEY, "n"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("Ответьте jev или kev", out)
+        self.assertNotIn("kev.serve", out)
+        self.assertIn("JEV_AI_BASE_URL=https://jev-ai.pro/api", self.env_file.read_text())
+
+    def test_eof_after_write_is_reported_honestly(self):
+        code, out = self.run_script(b"y\nkev\n\n\n\n", jev_py=JEV_PY)
+        self.assertEqual(code, 0, out)
+        self.assertIn("JEV_AI_API_KEY=local", self.env_file.read_text())
+        self.assertIn("уже записаны", out)
+        self.assertNotIn("не изменён", out)
+        self.assertIn("kev.serve", out)
+        self.env_file.unlink()
+        code, out = self.run_script(("y\njev\n\n\n%s\n" % KEY).encode(), jev_py=JEV_PY)
+        self.assertIn("уже записаны", out)
+        self.assertNotIn("kev.serve", out)
+
+    def test_kev_remote_address_gets_no_local_run(self):
+        code, out = self.run_script(["y", "kev", "https://kev.example.com:9443/api", "", "", "n"],
+                                    jev_py=JEV_PY)
+        self.assertEqual(code, 0, out)
+        self.assertIn("не этот компьютер", out)
+        self.assertNotIn("--port 9443", out)
 
 if __name__ == "__main__":
     unittest.main()

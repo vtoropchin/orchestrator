@@ -1,9 +1,11 @@
 #!/bin/sh
 # Интерактивная настройка Jev для orchestrate (вызывается из make install).
-# Спрашивает адрес API, модель и ключ и записывает JEV_AI_* в .env проекта
+# Спрашивает решатель (облачный Jev или локальный Kev), адрес API, модель и ключ и
+# записывает JEV_AI_* в .env проекта
 # (права 0600, остальные строки файла сохраняются). Ключ не печатается и не
 # передаётся аргументами команд. Затем по согласию — проверка подключения
-# через GET /v1/models: инференса нет, баланс не расходуется.
+# через GET /v1/models: инференса нет, баланс не расходуется. Для Kev в конце —
+# инструкция по установке и запуску сервера (сам сервер не ставится).
 #
 # Использование: sh scripts/configure-jev.sh <корень проекта> [путь к jev.py]
 set -eu
@@ -19,6 +21,10 @@ default_base=https://jev-ai.pro/api
 default_model=jev-latest
 tmp=
 echo_off=0
+written=0
+solver=jev
+kev_key=0
+base=
 
 cleanup() {
   if [ "$echo_off" -eq 1 ]; then stty echo 2>/dev/null || :; fi
@@ -34,7 +40,12 @@ ask() {
   printf '%s [%s]: ' "$1" "$2"
   if ! IFS= read -r reply; then
     printf '\n'
-    say 'make install: ввод прерван; настройка Jev пропущена, .env не изменён.' >&2
+    if [ "$written" -eq 1 ]; then
+      say "make install: ввод прерван; настройки Jev уже записаны в $env_file." >&2
+      if [ "$solver" = kev ]; then kev_instructions; fi
+    else
+      say 'make install: ввод прерван; настройка Jev пропущена, .env не изменён.' >&2
+    fi
     exit 0
   fi
   # LC_ALL=C: побайтово, иначе sed на macOS падает на недобитом UTF-8 (стёртая кириллица).
@@ -47,6 +58,31 @@ end_with_newline() {
   if [ -s "$1" ] && [ "$(tail -c 1 "$1" | od -An -c | tr -d ' ')" != '\n' ]; then
     printf '\n' >>"$1"
   fi
+}
+
+# Инструкция для Kev: сервер ставит и запускает пользователь, make install его не устанавливает.
+kev_instructions() {
+  port=$(printf '%s\n' "$base" | LC_ALL=C sed -n 's|^https*://[^/:]*:\([0-9][0-9]*\).*|\1|p')
+  [ -n "$port" ] || port=8009
+  env_prefix=
+  if [ "$kev_key" -eq 1 ]; then env_prefix='KEV_API_KEY=<ключ из JEV_AI_API_KEY> '; fi
+  say '' 'make install: Kev — открытая модель-решатель (Apache-2.0): https://github.com/jaredpalmer/kev'
+  if ! printf '%s\n' "$base" | LC_ALL=C grep -Eq '^http://(127\.0\.0\.1|localhost)(:|/|$)'; then
+    say "  Адрес $base — не этот компьютер: запустите Kev на том хосте и проверьте его оттуда."
+    return 0
+  fi
+  say \
+    '  Нужны git и uv; kev-4b занимает около 13 ГБ памяти, на Apple Silicon работает через MLX.' \
+    '  Установка (один раз, в любом каталоге вне проекта):' \
+    '    git clone https://github.com/jaredpalmer/kev' \
+    '    cd kev && uv sync --extra serve' \
+    '  Запуск (из каталога kev, в отдельном терминале; держите его открытым, пока работает orchestrate):' \
+    "    ${env_prefix}uv run --extra serve python -m kev.serve --run jaredpalmer/kev-4b --port $port" \
+    '  Точнее, но около 18 ГБ памяти: jaredpalmer/kev-9b вместо jaredpalmer/kev-4b.'
+  if [ -n "$jev_py" ]; then
+    say '  Проверка после запуска:' "    python3 $jev_py --project $work_dir check"
+  fi
+  say '  Kev слабее облачного Jev: начните с runtime.jev.mode: shadow (jev.md).'
 }
 
 yes_answer() {
@@ -115,6 +151,19 @@ if git -C "$work_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 while :; do
+  ask 'Решатель: jev — облачный Jev (нужен ключ), kev — открытый Kev на этом компьютере (jev/kev)' 'jev'
+  case $reply in
+    jev|Jev|JEV|1) solver=jev; break ;;
+    kev|Kev|KEV|2) solver=kev; break ;;
+  esac
+  say 'Ответьте jev или kev.' >&2
+done
+if [ "$solver" = kev ]; then
+  default_base=http://127.0.0.1:8009
+  default_model=kev-latest
+fi
+
+while :; do
   ask 'Адрес API Jev' "$default_base"
   base=${reply%/}
   if printf '%s\n' "$base" | LC_ALL=C grep -Eq '^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/%-]*)?$' ||
@@ -130,13 +179,23 @@ while :; do
   say 'Имя модели: латиница, цифры и . _ : / -' >&2
 done
 
-printf 'Ключ API (создаётся в панели провайдера; ввод не отображается): '
+if [ "$solver" = kev ]; then
+  printf 'Ключ Kev — значение KEV_API_KEY сервера, если он с ним запущен (Enter — без ключа; ввод не отображается): '
+else
+  printf 'Ключ API (создаётся в панели провайдера; ввод не отображается): '
+fi
 if [ -t 0 ]; then stty -echo; echo_off=1; fi
 key=
 IFS= read -r key || key=
 if [ "$echo_off" -eq 1 ]; then stty echo; echo_off=0; fi
 printf '\n'
 key=$(printf '%s' "$key" | LC_ALL=C sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+kev_key=1
+if [ -z "$key" ] && [ "$solver" = kev ]; then
+  # Kev без KEV_API_KEY ключ не проверяет, а jev.py без ключа считает Jev выключенным.
+  key=local
+  kev_key=0
+fi
 if [ -z "$key" ]; then
   say 'make install: ключ не введён; .env не изменён.'
   exit 0
@@ -161,7 +220,11 @@ if [ -f "$env_file" ]; then
   end_with_newline "$tmp"
 fi
 {
-  printf '%s\n' '# Jev для orchestrate (make install)'
+  if [ "$solver" = kev ]; then
+    printf '%s\n' '# Jev для orchestrate: локальный Kev (make install)'
+  else
+    printf '%s\n' '# Jev для orchestrate (make install)'
+  fi
   printf 'JEV_AI_BASE_URL=%s\n' "$base"
   printf 'JEV_AI_MODEL=%s\n' "$model"
   printf 'JEV_AI_API_KEY=%s\n' "$key"
@@ -170,6 +233,7 @@ key=
 chmod 600 "$tmp"
 mv -f -- "$tmp" "$env_file"
 tmp=
+written=1
 say "make install: настройки Jev записаны в $env_file (права 0600)."
 
 if [ "$in_git" -eq 1 ] && ! git -C "$work_dir" check-ignore -q -- .env 2>/dev/null; then
@@ -189,19 +253,27 @@ fi
 if [ -n "$jev_py" ] && [ -f "$jev_py" ]; then
   if ! command -v python3 >/dev/null 2>&1; then
     say 'make install: нет python3 — orchestrate будет работать без Jev, пока он не появится.'
+    if [ "$solver" = kev ]; then kev_instructions; fi
     exit 0
   fi
-  ask 'Проверить подключение сейчас (GET /v1/models, баланс не расходуется)? (Y/n)' 'Y'
+  if [ "$solver" = kev ]; then
+    ask 'Kev уже запущен? Проверить подключение сейчас (GET /v1/models)? (y/N)' 'N'
+  else
+    ask 'Проверить подключение сейчас (GET /v1/models, баланс не расходуется)? (Y/n)' 'Y'
+  fi
   if yes_answer "$reply"; then
     status=0
     out=$(python3 "$jev_py" --project "$work_dir" check) || status=$?
     say "  $out"
     if [ "$status" -eq 0 ]; then
       say 'make install: Jev отвечает; модели перечислены выше.'
+    elif [ "$solver" = kev ]; then
+      say "make install: Kev не ответил (код $status); запустите его по инструкции ниже и повторите проверку."
     else
       say "make install: проверка не прошла (код $status); orchestrate будет работать без Jev." \
         '  Проверьте ключ, баланс и сеть до хоста из вывода выше.'
     fi
   fi
 fi
+if [ "$solver" = kev ]; then kev_instructions; fi
 exit 0
