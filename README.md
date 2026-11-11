@@ -393,22 +393,25 @@ Makefile не содержит собственного установщика.
 Команды выполняются **из корня проекта-потребителя**, не из этого репозитория.
 Для воспроизводимости примеры закреплены на `skills@1.7.6`.
 
+В примерах `SKILLS_REPO` — путь к клону этого репозитория, например
+`SKILLS_REPO=../Skills`.
+
 Оба готовых пакета для Claude Code, проектная независимая копия:
 
 ```bash
-DISABLE_TELEMETRY=1 npx --yes skills@1.7.6 add /Users/vladimir/Programming/Skills/skills --skill orchestrate session-worker -a claude-code --copy -y
+DISABLE_TELEMETRY=1 npx --yes skills@1.7.6 add "$SKILLS_REPO/skills" --skill orchestrate session-worker -a claude-code --copy -y
 ```
 
 Только оркестратор (bootstrap уже внутри):
 
 ```bash
-DISABLE_TELEMETRY=1 npx --yes skills@1.7.6 add /Users/vladimir/Programming/Skills/skills --skill orchestrate -a claude-code --copy -y
+DISABLE_TELEMETRY=1 npx --yes skills@1.7.6 add "$SKILLS_REPO/skills" --skill orchestrate -a claude-code --copy -y
 ```
 
 Только исполнитель:
 
 ```bash
-DISABLE_TELEMETRY=1 npx --yes skills@1.7.6 add /Users/vladimir/Programming/Skills/skills --skill session-worker -a claude-code --copy -y
+DISABLE_TELEMETRY=1 npx --yes skills@1.7.6 add "$SKILLS_REPO/skills" --skill session-worker -a claude-code --copy -y
 ```
 
 Ниже — общие примеры для авторов: скил `my-skill` должен уже существовать.
@@ -416,17 +419,17 @@ DISABLE_TELEMETRY=1 npx --yes skills@1.7.6 add /Users/vladimir/Programming/Skill
 Посмотреть список без установки:
 
 ```bash
-DISABLE_TELEMETRY=1 npx skills@1.7.6 add /Users/vladimir/Programming/Skills/skills --list
+DISABLE_TELEMETRY=1 npx skills@1.7.6 add "$SKILLS_REPO/skills" --list
 ```
 
 Установить один скил для Claude Code:
 
 ```bash
-DISABLE_TELEMETRY=1 npx skills@1.7.6 add /Users/vladimir/Programming/Skills/skills --skill my-skill -a claude-code
+DISABLE_TELEMETRY=1 npx skills@1.7.6 add "$SKILLS_REPO/skills" --skill my-skill -a claude-code
 ```
 
-Укажите свой путь к клону вместо показанного абсолютного пути. Можно передать относительный
-путь, например `../Skills/skills`, или путь прямо к `skills/my-skill`. Для другого клиента
+Вместо `"$SKILLS_REPO/skills"` можно передать любой путь к каталогу `skills/` клона
+или путь прямо к `skills/my-skill`. Для другого клиента
 используйте `-a codex`, `-a cursor` либо выбор агентов в интерактивном CLI.
 
 По умолчанию установка проектная. `-g` делает её глобальной — не добавляйте его без намерения.
@@ -458,9 +461,10 @@ DISABLE_TELEMETRY=1 npx skills@1.7.6 add https://github.com/OWNER/REPO/tree/main
   `.claude/skills/`). Обновление: установка из `skills/` и `adapt` в режиме обновления.
   Не переписывайте общие скилы под конкретный стек.
 
-memo использует бинарь `/Users/vladimir/.local/bin/memo` и общую БД с изоляцией по scope.
-Этот путь относится только к среде авторинга и не должен попадать в распространяемые скилы.
-На другой машине нужно настроить свой путь к memo. Reasoner использует локальный
+memo использует бинарь `memo` из `PATH` и общую БД с изоляцией по scope. Другой путь к бинарю
+задаётся переменной окружения `MEMO_BIN`: её читают `.mcp.json` и хуки `.claude/settings.json`.
+Конфиг DeepSeek Harness (`.dsh/`) содержит абсолютные пути машины, поэтому не хранится в Git:
+его создаёт `memo init` в своём клоне. Reasoner использует локальный
 CLIProxyAPI по адресу `http://127.0.0.1:8317/v1`; модель задаётся в `agentmemory.toml`.
 Передайте один из ключей `api-keys` конфига CLIProxyAPI через переменную окружения
 `CLIPROXY_API_KEY` или локальную `.env` (она исключена из Git). Не записывайте ключ
