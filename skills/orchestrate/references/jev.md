@@ -76,11 +76,16 @@ jev:
   "writes_code": true,
   "read_only": false,
   "review_md_risk": "low",
-  "author_profile": null
+  "author_profile": null,
+  "top_policy": "table"
 }
 ```
 
 - `role`: `scout` | `planner` | `dev-lead` | `worker` | `integrator` | `verifier`.
+- `top_policy`: `table` (по умолчанию) или `escalation_only` из правил проекта
+  ([выбор модели](model-selection.md), «Правила проекта»). При `escalation_only` ответ даёт
+  `profile: coding` вместо `top` с правилом `top_by_escalation_only`; `table_profile` —
+  профиль по таблице до этого ограничения: сохраните его для эскалации.
 - `read_only`: назначение ничего не пишет — ни файлов, ни данных, ни внешних эффектов.
   Не указано — считается записью (для scout — `true`; scout с записью — ошибка входа).
 - `writes_code`, `read_only`, `review_md_risk` (`low`/`medium`/`high`/`unknown`) и `author_profile`
@@ -92,14 +97,14 @@ jev:
 Ответ (код 0):
 
 ```json
-{"profile": "coding", "effort": "medium", "rules": ["writes_code_floor", "small_and_clear"],
+{"profile": "coding", "table_profile": "coding", "effort": "medium", "rules": ["writes_code_floor", "small_and_clear"],
  "judgments": {"size": {"score": 0.6, "p_large": 0.05},
                "secrets": {"p": 0.04, "verdict": "no"}, "...": "..."},
  "model": "jev-1.14.0", "usage": {"input_tokens": 120, "output_tokens": 0}}
 ```
 
 Для `scout` Jev не вызывается и ключ не нужен; ответ —
-`{"profile": "light", "effort": "low", "rules": ["scout_facts_only"], "judgments": null, "model": null, "usage": null}`.
+`{"profile": "light", "table_profile": "light", "effort": "low", "rules": ["scout_facts_only"], "judgments": null, "model": null, "usage": null}`.
 
 Таблица (в скрипте; пороги вероятности «да» ≥ 0.7, «нет» ≤ 0.3, между — «неясно»):
 
@@ -141,7 +146,8 @@ jev:
 ```json
 {"failure_report": "<краткий отчёт child о неудаче>", "check_output": "<хвост вывода проверки>",
  "failed_repairs": 1, "current_profile": "coding",
- "current_effort": "medium", "effort_value_count": 3}
+ "current_effort": "medium", "effort_value_count": 3,
+ "top_policy": "table", "high_risk": false}
 ```
 
 | `action` | Что делать |
@@ -149,6 +155,7 @@ jev:
 | `raise_effort` | Ошибка рассуждения (p ≥ 0.7) после первого repair на `coding`/`top`, и у клиента есть значение уровня выше текущего: новая попытка на той же модели с `target_effort` (первый уровень, дающий другое значение клиента). `effort_value_count` — число значений в `effort_values` модели; без него и `current_effort` не выдаётся |
 | `escalate` | Причина — ошибка рассуждения (p ≥ 0.7) после двух repair: новая стратегия на `target_profile` |
 | `blocker` | Среда, доступ или нехватка данных (p ≥ 0.7): эскалация модели не поможет, это блокер |
+| `parent_decides` с `top_reserved_for_high_risk` | `top_policy: escalation_only`, два неудачных repair на `coding`, но задача не высокого риска (`high_risk: false` — `table_profile` калибровки не был `top`): `top` не назначается, решение parent |
 | `parent_decides` | Таблица не решает: правила «Эскалация вместо дорогого старта» как без Jev |
 
 В `shadow` ответ только записывается; в `apply` `blocker`, `raise_effort` и `escalate` применяются.

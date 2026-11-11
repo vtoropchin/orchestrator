@@ -40,6 +40,8 @@ RETRY_STATUSES = {408, 429}
 MAX_STATE_CHARS = 60000  # с запасом под контекст 32k токенов вместе с вопросами
 PROFILES = ("light", "coding", "top")
 EFFORTS = ("low", "medium", "high", "max")  # уровни усилия; значения клиента — по model-selection.md
+# Политика проекта для top: table — по таблицам; escalation_only — top только эскалацией.
+TOP_POLICIES = ("table", "escalation_only")
 ROLES = ("scout", "planner", "dev-lead", "worker", "integrator", "verifier")
 DECIDING_ROLES = ("planner", "dev-lead", "integrator", "verifier")
 REVIEW_RISKS = ("low", "medium", "high", "unknown")
@@ -405,8 +407,16 @@ def decide_effort(profile, facts, judgments, rules):
     return "medium"
 
 
+def top_policy(state):
+    value = state.get("top_policy", "table")
+    if value not in TOP_POLICIES:
+        raise Fail(2, "bad_input", "field 'top_policy' must be one of " + ", ".join(TOP_POLICIES))
+    return value
+
+
 def calibrate(args):
     state = read_state(args.state)
+    policy = top_policy(state)
     facts = {
         "role": require(state, "role", str, ROLES),
         "writes_code": require(state, "writes_code", bool),
@@ -428,7 +438,8 @@ def calibrate(args):
         # Scout только собирает факты со ссылками: всегда light, Jev не нужен.
         if facts["writes_code"] or not facts["read_only"]:
             raise Fail(2, "bad_input", "scout is read-only; use role worker or dev-lead")
-        return {"profile": "light", "effort": "low", "rules": ["scout_facts_only"],
+        return {"profile": "light", "table_profile": "light", "effort": "low",
+                "rules": ["scout_facts_only"],
                 "judgments": None, "model": None, "usage": None}
     jev_state = {"task": task}
     check_size(jev_state)
@@ -450,9 +461,17 @@ def calibrate(args):
             continue
         p = prob(answers[name], "noul")
         judgments[name] = {"p": p, "verdict": verdict(p)}
-    profile, rules = decide_profile(facts, judgments)
+    table_profile, rules = decide_profile(facts, judgments)
+    profile = table_profile
+    # escalation_only: старшая модель не назначается сразу — только эскалацией после неудачи.
+    # Verifier результата уже эскалированного автора остаётся не слабее автора.
+    if (policy == "escalation_only" and profile == "top"
+            and not (facts["role"] == "verifier" and facts["author_profile"] == "top")):
+        profile = "coding"
+        rules.append("top_by_escalation_only")
     effort = decide_effort(profile, facts, judgments, rules)
-    return {"profile": profile, "effort": effort, "rules": rules, "judgments": judgments,
+    return {"profile": profile, "table_profile": table_profile, "effort": effort,
+            "rules": rules, "judgments": judgments,
             "model": result.get("model"), "usage": result.get("usage")}
 
 
@@ -462,6 +481,10 @@ def repair_cause(args):
     if isinstance(failed, bool) or not isinstance(failed, int) or failed < 0:
         raise Fail(2, "bad_input", "field 'failed_repairs' must be a non-negative integer")
     current = require(state, "current_profile", str, PROFILES)
+    policy = top_policy(state)
+    high_risk = state.get("high_risk", False)
+    if not isinstance(high_risk, bool):
+        raise Fail(2, "bad_input", "field 'high_risk' must be true or false")
     effort_now, n_values = state.get("current_effort"), state.get("effort_value_count")
     if effort_now is not None and effort_now not in EFFORTS:
         raise Fail(2, "bad_input", "field 'current_effort' must be one of " + ", ".join(EFFORTS))
@@ -493,6 +516,9 @@ def repair_cause(args):
         # Сначала дешевле: то же назначение на той же модели с большим усилием.
         action, target, rule = "raise_effort", None, "reasoning_error_raise_effort_first"
         target_effort = next_effort
+    elif (reasoning and failed >= 2 and current == "coding" and policy == "escalation_only"
+          and not high_risk):
+        action, target, rule = "parent_decides", None, "top_reserved_for_high_risk"
     elif reasoning and failed >= 2 and current != "top":
         action, target, rule = "escalate", PROFILES[PROFILES.index(current) + 1], \
             "reasoning_error_after_two_repairs"
