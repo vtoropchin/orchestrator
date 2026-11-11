@@ -255,6 +255,33 @@ class CalibrateEffort(Tmp):
         self.assertEqual(self.effort(state), ("light", "low"))
 
 
+class TopEscalationOnly(Tmp):
+    LEAD = dict(BASE_STATE, role="dev-lead", top_policy="escalation_only")
+
+    def test_table_top_is_capped_to_coding_with_high_effort(self):
+        code, out, raw = self.calibrate(self.LEAD, calibrate_response(size=(0.0, 0.1, 0.3, 0.6),
+                                                                      secrets=0.9))
+        self.assertEqual(code, 0, raw)
+        self.assertEqual((out["profile"], out["effort"]), ("coding", "high"))
+        self.assertEqual(out["table_profile"], "top")
+        self.assertIn("top_by_escalation_only", out["rules"])
+
+    def test_default_policy_keeps_top(self):
+        state = dict(self.LEAD, top_policy="table")
+        code, out, _ = self.calibrate(state, calibrate_response(secrets=0.9))
+        self.assertEqual(out["profile"], "top")
+        self.assertEqual(out["table_profile"], "top")
+
+    def test_verifier_of_escalated_author_stays_top(self):
+        state = dict(self.LEAD, role="verifier", author_profile="top")
+        code, out, _ = self.calibrate(state, calibrate_response())
+        self.assertEqual(out["profile"], "top")
+
+    def test_unknown_policy_is_input_error(self):
+        code, out, _ = self.calibrate(dict(self.LEAD, top_policy="never"), calibrate_response())
+        self.assertEqual(code, 2)
+
+
 class CalibrateInput(Tmp):
     def test_missing_role_is_input_error(self):
         state = {k: v for k, v in BASE_STATE.items() if k != "role"}
@@ -369,6 +396,33 @@ class RepairCause(Tmp):
                      current_effort="low", effort_value_count=4)
         code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
         self.assertNotEqual(out["action"], "raise_effort")
+
+    def test_escalation_only_reaches_top_for_high_risk_after_two_failures(self):
+        state = dict(self.STATE, top_policy="escalation_only", high_risk=True)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual((out["action"], out["target_profile"]), ("escalate", "top"))
+
+    def test_escalation_only_keeps_top_for_high_risk_only(self):
+        state = dict(self.STATE, top_policy="escalation_only", high_risk=False)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual(out["action"], "parent_decides")
+        self.assertEqual(out["rule"], "top_reserved_for_high_risk")
+
+    def test_escalation_only_raises_effort_first(self):
+        state = dict(self.STATE, failed_repairs=1, current_effort="medium",
+                     effort_value_count=4, top_policy="escalation_only", high_risk=True)
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual(out["action"], "raise_effort")
+
+    def test_escalation_only_does_not_block_light_to_coding(self):
+        state = dict(self.STATE, current_profile="light", top_policy="escalation_only")
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual((out["action"], out["target_profile"]), ("escalate", "coding"))
+
+    def test_high_risk_must_be_boolean(self):
+        state = dict(self.STATE, top_policy="escalation_only", high_risk="yes")
+        code, out, _ = self.repair(state, repair_response("reasoning_error", 0.8))
+        self.assertEqual(code, 2)
 
     def test_top_profile_has_nowhere_to_escalate(self):
         state = dict(self.STATE, current_profile="top")

@@ -113,6 +113,9 @@ F/model проверяет решение parent по [выбору модели
 | M13 | `inherit`, parent на `light`, worker пишет код / эскалация `coding → top` после двух repair | `blocked: model_below_floor` либо `user_decision` после согласия / блокер с причиной, без повтора на той же модели |
 | M14 | dsh, `selection: inherit`, в схеме запуска субагента есть уровень рассуждений; scout и worker T1 с кодом | Для worker Jev calibrate вызывается ради уровня; scout — `low` (`v[0]`) без вызова Jev, worker — `medium`; модель у обоих — parent, в отчёте «принудительно» |
 | M15 | Первый repair на `coding` упал из-за логики, уровень `medium` из `high` доступных / второй repair | Та же модель на `high` (`raise_effort`) / новая стратегия на `top` |
+| M16 | Правила проекта: `deepseek-flash: coding`, `deepseek-v4-pro: top`, `top: только эскалация`; worker T1 вне путей риска и dev-lead T3 на пути security | Каталог из правил, не из догадок; worker — Flash `medium`; dev-lead — Flash `high` (`top_by_escalation_only`, `table_profile: top`); одна строка о действующих правилах на шаге 1 |
+| M17 | То же; dev-lead два раза ошибся в рассуждении / worker T1 два раза ошибся | После первой ошибки Flash на `max`/выше по значению клиента, после второй — Pro / `parent_decides` (`top_reserved_for_high_risk`), Pro не назначается |
+| M18 | Модель в списке child без описания силы (только имя), правил проекта нет | Младший правдоподобный класс, один вопрос пользователю о классе и предложение строки для правил проекта |
 
 ## Git-v3: критерии и негативные сценарии
 
