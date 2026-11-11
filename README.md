@@ -461,8 +461,8 @@ DISABLE_TELEMETRY=1 npx skills@1.7.6 add https://github.com/OWNER/REPO/tree/main
   `.claude/skills/`). Обновление: установка из `skills/` и `adapt` в режиме обновления.
   Не переписывайте общие скилы под конкретный стек.
 
-memo использует бинарь `memo` из `PATH` и общую БД с изоляцией по scope. Другой путь к бинарю
-задаётся переменной окружения `MEMO_BIN`: её читают `.mcp.json` и хуки `.claude/settings.json`.
+memo использует бинарь `memo` из `PATH` (его ждут `.mcp.json` и хуки `.claude/settings.json`)
+и общую БД с изоляцией по scope.
 Конфиг DeepSeek Harness (`.dsh/`) содержит абсолютные пути машины, поэтому не хранится в Git:
 его создаёт `memo init` в своём клоне. Reasoner использует локальный
 CLIProxyAPI по адресу `http://127.0.0.1:8317/v1`; модель задаётся в `agentmemory.toml`.

@@ -5,7 +5,7 @@
         "matcher": "",
         "hooks": [
           {
-            "command": "\"${MEMO_BIN:-memo}\" hook -event session-start -config ${CLAUDE_PROJECT_DIR:-.}/agentmemory.toml",
+            "command": "memo hook -event session-start -config ${CLAUDE_PROJECT_DIR:-.}/agentmemory.toml",
             "type": "command"
           }
         ]
@@ -16,7 +16,7 @@
         "matcher": "",
         "hooks": [
           {
-            "command": "\"${MEMO_BIN:-memo}\" hook -event prompt-submit -config ${CLAUDE_PROJECT_DIR:-.}/agentmemory.toml",
+            "command": "memo hook -event prompt-submit -config ${CLAUDE_PROJECT_DIR:-.}/agentmemory.toml",
             "type": "command"
           }
         ]
