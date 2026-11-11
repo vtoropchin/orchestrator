@@ -47,7 +47,7 @@ runtime:
   capabilities: {spawn: true, channel: true, reconcile: true, wake: true, result: false, child_memo: true, worktree: client} # worktree: client | parent | none
   mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>, worktree: <параметр изоляции клиента | git worktree add | null>}
   limits: [] # например: нет вложенной делегации, нет вопросов человеку у child, предел параллельных субагентов
-  model_catalog: {client: <клиент>, source: <откуда>, models: [], selection: <chosen|unsupported>} # см. model-selection.md, «Каталог моделей клиента»
+  model_catalog: {client: <клиент>, source: <откуда>, models: [], selection: <chosen|single_candidate|inherit>, effort_values: [] , effort_selection: <chosen|inherit>} # см. model-selection.md, «Каталог моделей клиента»
   jev: {mode: off, provider: null, host: null, consent_ref: null} # off | shadow | apply; см. jev.md
 ```
 
@@ -125,7 +125,7 @@ transport для новых назначений; незавершённые н�
 |---|---|---|
 | Claude Code Desktop | `session` | [Отдельный адаптер](runtime-claude-code-desktop.md) |
 | Claude Code CLI/IDE/web без инструментов сессий | `delegated` | Субагент со свежим контекстом и возвратом итога; фоновые субагенты с уведомлением = WAKE; worktree-изоляция субагента = WORKTREE `client` (создаётся от текущего HEAD — child переключается на `base_oid`) |
-| DeepSeek Harness (dsh) | `delegated` | Subagent в режиме fresh context, не fork беседы; MCP memo подключён в профиле/patch-слое и виден child |
+| DeepSeek Harness (dsh) | `delegated` | [Адаптер](runtime-deepseek-harness.md): subagent в режиме fresh context, не fork беседы; MCP memo подключён в профиле/patch-слое и виден child; модели child — только из списка моделей субагентов сессии |
 | Hermes Agent | `delegated` | Делегирование задачи субагенту с возвратом итога; доступ child к MCP memo и предел параллельных субагентов |
 | Другой клиент | по таблице возможностей | Нет ни `session`, ни `delegated` — `blocked: no_child_runtime` |
 

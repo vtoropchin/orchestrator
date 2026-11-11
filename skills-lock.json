@@ -44,12 +44,12 @@
     "orchestrate": {
       "source": "./skills",
       "sourceType": "local",
-      "computedHash": "239bb4f653e1c9de87934f5cdb7a2ce17e2d364f9455a6cf84ac8eb96c62ac29"
+      "computedHash": "3194208924bade86059ed262c089ad4377425e7d974f566c90c21827269f4fab"
     },
     "session-worker": {
       "source": "./skills",
       "sourceType": "local",
-      "computedHash": "b85934ab928d86e9fa079f689652271d4b39916363abc5ef9b3b5756e1efe1af"
+      "computedHash": "1b4374d487ce589a0cb5d176bc57d52ff8aceba107b7157e0f14a61c818398b2"
     },
     "skill-creator": {
       "source": "anthropics/skills",

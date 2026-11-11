@@ -59,11 +59,12 @@ jev:
 |---|---|
 | `off` | Ваша калибровка, как в [выборе модели](model-selection.md) |
 | `shadow` | Ваша калибровка; ответ Jev записывается рядом для сравнения |
-| `apply` | Профиль из `calibrate`; вы можете только **поднять** его, указав причину |
+| `apply` | Профиль и уровень усилия из `calibrate`; вы можете только **поднять** их, указав причину. Выбирать нечего — `calibrate` не вызывается, всё по таблицам |
 
 ## Калибровка назначения
 
-Перед intent назначения подготовьте state и вызовите
+Только когда есть что выбирать: `selection: chosen` или `effort_selection: chosen`.
+Нельзя выбрать ни модель, ни уровень усилия — вызов лишь тратит баланс. Перед intent назначения подготовьте state и вызовите
 `python3 <пакет>/scripts/jev.py calibrate --state <файл|->` (state можно подать в stdin):
 
 ```json
@@ -73,13 +74,21 @@ jev:
   "acceptance_criteria": ["поле сохраняется", "валидация формата"],
   "planned_paths": ["src/profile/form.py", "tests/profile/test_form.py"],
   "writes_code": true,
+  "read_only": false,
   "review_md_risk": "low",
-  "author_profile": null
+  "author_profile": null,
+  "top_policy": "table"
 }
 ```
 
 - `role`: `scout` | `planner` | `dev-lead` | `worker` | `integrator` | `verifier`.
-- `writes_code`, `review_md_risk` (`low`/`medium`/`high`/`unknown`) и `author_profile`
+- `top_policy`: `table` (по умолчанию) или `escalation_only` из правил проекта
+  ([выбор модели](model-selection.md), «Правила проекта»). При `escalation_only` ответ даёт
+  `profile: coding` вместо `top` с правилом `top_by_escalation_only`; `table_profile` —
+  профиль по таблице до этого ограничения: сохраните его для эскалации.
+- `read_only`: назначение ничего не пишет — ни файлов, ни данных, ни внешних эффектов.
+  Не указано — считается записью (для scout — `true`; scout с записью — ошибка входа).
+- `writes_code`, `read_only`, `review_md_risk` (`low`/`medium`/`high`/`unknown`) и `author_profile`
   (только для verifier) — **факты**, которые вы определяете сами по brief и `REVIEW.md`;
   в Jev они не отправляются, из них таблица строит пол.
 - В Jev уходят только `goal`, `acceptance_criteria`, `planned_paths`. Не кладите туда
@@ -88,28 +97,36 @@ jev:
 Ответ (код 0):
 
 ```json
-{"profile": "coding", "rules": ["writes_code_floor", "small_and_clear"],
+{"profile": "coding", "table_profile": "coding", "effort": "medium", "rules": ["writes_code_floor", "small_and_clear"],
  "judgments": {"size": {"score": 0.6, "p_large": 0.05},
                "secrets": {"p": 0.04, "verdict": "no"}, "...": "..."},
  "model": "jev-1.14.0", "usage": {"input_tokens": 120, "output_tokens": 0}}
 ```
 
+Для `scout` Jev не вызывается и ключ не нужен; ответ —
+`{"profile": "light", "table_profile": "light", "effort": "low", "rules": ["scout_facts_only"], "judgments": null, "model": null, "usage": null}`.
+
 Таблица (в скрипте; пороги вероятности «да» ≥ 0.7, «нет» ≤ 0.3, между — «неясно»):
 
 | Условие | Профиль не ниже |
 |---|---|
+| `role` = `scout` | всегда `light`; Jev не вызывается (`scout_facts_only`); scout с `writes_code` — ошибка входа |
 | `writes_code` | `coding` |
-| `review_md_risk` = `high` или `unknown` | `top` |
-| Затронуты права, секреты, внешний ввод, хранимые данные или публичный контракт — «да» **или «неясно»** | `top` |
-| P(T2 или T3) ≥ 0.3, либо требования неоднозначны / нужен выбор архитектуры (не «нет») | `top` для planner, dev-lead, integrator, verifier; `coding` для scout и worker |
+| `review_md_risk` = `high` или `unknown` — если не `read_only` или роль решающая | `top` |
+| Затронуты права, секреты, внешний ввод, хранимые данные или публичный контракт — «да» **или «неясно»**, с тем же условием | `top` |
+| Worker с `read_only`: риск не применяется (`read_only_risk_not_applied`) | — |
+| P(T2 или T3) ≥ 0.3, либо требования неоднозначны / нужен выбор архитектуры (не «нет») | `top` для planner, dev-lead, integrator, verifier; `coding` для worker |
 | Иначе: planner, dev-lead, integrator, verifier | `coding` |
-| Иначе: scout или worker без кода | `light` |
+| Иначе: worker | `light` |
 | verifier | не ниже `author_profile` |
 
-Итог — максимум сработавших строк. Пороги качества из [выбора модели](model-selection.md)
+Решающие роли — planner, dev-lead, integrator, verifier. Итог — максимум сработавших строк. Пороги качества из [выбора модели](model-selection.md)
 (код не ниже `coding`, verifier ≥ автора, понижения нет) действуют поверх: результат,
 который их нарушает, не применяйте. Профиль затем превращается в конкретную модель по
-каталогу (`model-selection.md`, «Каталог моделей»).
+каталогу (`model-selection.md`, «Каталог моделей»), а `effort` — в значение клиента по
+разделу «Уровень усилия» там же (`light` → `low`; `coding` → `medium`, при крупной задаче,
+риске, verifier/integrator, а при неясных требованиях — только у решающих ролей — `high`;
+`top` → `high`, T3 с риском — `max`).
 
 Запишите в control назначения рядом с `model`:
 
@@ -128,16 +145,20 @@ jev:
 
 ```json
 {"failure_report": "<краткий отчёт child о неудаче>", "check_output": "<хвост вывода проверки>",
- "failed_repairs": 2, "current_profile": "coding"}
+ "failed_repairs": 1, "current_profile": "coding",
+ "current_effort": "medium", "effort_value_count": 3,
+ "top_policy": "table", "high_risk": false}
 ```
 
 | `action` | Что делать |
 |---|---|
+| `raise_effort` | Ошибка рассуждения (p ≥ 0.7) после первого repair на `coding`/`top`, и у клиента есть значение уровня выше текущего: новая попытка на той же модели с `target_effort` (первый уровень, дающий другое значение клиента). `effort_value_count` — число значений в `effort_values` модели; без него и `current_effort` не выдаётся |
 | `escalate` | Причина — ошибка рассуждения (p ≥ 0.7) после двух repair: новая стратегия на `target_profile` |
 | `blocker` | Среда, доступ или нехватка данных (p ≥ 0.7): эскалация модели не поможет, это блокер |
+| `parent_decides` с `top_reserved_for_high_risk` | `top_policy: escalation_only`, два неудачных repair на `coding`, но задача не высокого риска (`high_risk: false` — `table_profile` калибровки не был `top`): `top` не назначается, решение parent |
 | `parent_decides` | Таблица не решает: правила «Эскалация вместо дорогого старта» как без Jev |
 
-В `shadow` ответ только записывается; в `apply` `blocker` и `escalate` применяются.
+В `shadow` ответ только записывается; в `apply` `blocker`, `raise_effort` и `escalate` применяются.
 
 ## Ошибки
 

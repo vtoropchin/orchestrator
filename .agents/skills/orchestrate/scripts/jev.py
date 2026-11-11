@@ -39,6 +39,9 @@ TIMEOUT_S = 10
 RETRY_STATUSES = {408, 429}
 MAX_STATE_CHARS = 60000  # с запасом под контекст 32k токенов вместе с вопросами
 PROFILES = ("light", "coding", "top")
+EFFORTS = ("low", "medium", "high", "max")  # уровни усилия; значения клиента — по model-selection.md
+# Политика проекта для top: table — по таблицам; escalation_only — top только эскалацией.
+TOP_POLICIES = ("table", "escalation_only")
 ROLES = ("scout", "planner", "dev-lead", "worker", "integrator", "verifier")
 DECIDING_ROLES = ("planner", "dev-lead", "integrator", "verifier")
 REVIEW_RISKS = ("low", "medium", "high", "unknown")
@@ -95,9 +98,11 @@ CALIBRATE_QUESTIONS = {
         "Requests, uploads, or third-party data are parsed or validated differently",
         "Only internal data that the system itself produced is involved"),
     "migration": noul_q(
-        "Does `task` change stored data or the schema of stored data?",
-        "Existing records, tables, or saved files must be changed or converted",
-        "Stored data and its format stay as they are"),
+        "Does `task` change data the application stores while it runs, or its schema?",
+        "Existing database records, user files, or caches that the running application "
+        "keeps must be changed or converted",
+        "The data the application keeps stays as it is; editing source code or "
+        "documentation files is not a change to stored data"),
     "public_contract": noul_q(
         "Does `task` change a public API, file format, or protocol that others depend on?",
         "Callers, clients, or users outside the changed code must adapt",
@@ -331,10 +336,15 @@ def prob(answer, field):
 # ---------- таблицы решений ----------
 
 def decide_profile(facts, judgments):
-    """Профиль назначения. Пол из фактов Jev не понижает; неясный риск — как высокий."""
+    """Профиль назначения. Пол из фактов Jev не понижает; неясный риск — как высокий.
+
+    Риск поднимает только тех, кто пишет, решает или принимает. Read-only сбор фактов
+    ничего не решает (правило 6 model-selection), поэтому риск задачи его не поднимает.
+    """
     rules = []
     level = 0
     role = facts["role"]
+    risk_applies = not facts["read_only"] or role in DECIDING_ROLES
 
     def lift(target, rule):
         nonlocal level
@@ -343,11 +353,13 @@ def decide_profile(facts, judgments):
 
     if facts["writes_code"]:
         lift("coding", "writes_code_floor")
-    if facts["review_md_risk"] == "high":
+    if not risk_applies:
+        rules.append("read_only_risk_not_applied")
+    elif facts["review_md_risk"] == "high":
         lift("top", "review_md_high_floor")
-    if facts["review_md_risk"] == "unknown":
+    elif facts["review_md_risk"] == "unknown":
         lift("top", "review_md_unknown_as_high")
-    for name in RISK_QUESTIONS:
+    for name in RISK_QUESTIONS if risk_applies else ():
         v = judgments[name]["verdict"]
         if v == "yes":
             lift("top", "risk_signal:" + name)
@@ -367,19 +379,68 @@ def decide_profile(facts, judgments):
     return PROFILES[level], rules
 
 
+def effort_value_index(level, n):
+    """Индекс значения клиента (по возрастанию, всего n) для уровня; см. model-selection."""
+    if level == "low":
+        return 0
+    if level == "max":
+        return n - 1
+    if level == "high":
+        return n - 2 if n >= 4 else n - 1
+    return (n - 1) // 2
+
+
+def decide_effort(profile, facts, judgments, rules):
+    """Уровень усилия (уровень рассуждений) внутри выбранного профиля."""
+    risky = any(r.startswith(("risk_signal:", "risk_unclear:", "review_md_")) for r in rules)
+    large = judgments["size"]["p_large"] >= LARGE
+    open_ = any(judgments[name]["verdict"] != "no" for name in OPEN_QUESTIONS)
+    if profile == "light":
+        return "low"
+    if profile == "top":
+        p_t3 = judgments["size"].get("p_t3", 0.0)
+        return "max" if risky and p_t3 >= 0.5 else "high"
+    # Неоднозначность поднимает усилие только решающим ролям: исполнитель задаёт вопрос.
+    if large or risky or facts["role"] in ("verifier", "integrator") or (
+            open_ and facts["role"] in DECIDING_ROLES):
+        return "high"
+    return "medium"
+
+
+def top_policy(state):
+    value = state.get("top_policy", "table")
+    if value not in TOP_POLICIES:
+        raise Fail(2, "bad_input", "field 'top_policy' must be one of " + ", ".join(TOP_POLICIES))
+    return value
+
+
 def calibrate(args):
     state = read_state(args.state)
+    policy = top_policy(state)
     facts = {
         "role": require(state, "role", str, ROLES),
         "writes_code": require(state, "writes_code", bool),
         "review_md_risk": require(state, "review_md_risk", str, REVIEW_RISKS),
         "author_profile": state.get("author_profile"),
+        # read_only: ни файлов, ни данных, ни внешних эффектов. Не указано — считается записью.
+        "read_only": state.get("read_only", state.get("role") == "scout"),
     }
+    if not isinstance(facts["read_only"], bool):
+        raise Fail(2, "bad_input", "field 'read_only' must be true or false")
+    if facts["read_only"] and facts["writes_code"]:
+        raise Fail(2, "bad_input", "read_only and writes_code cannot both be true")
     if facts["author_profile"] is not None and facts["author_profile"] not in PROFILES:
         raise Fail(2, "bad_input", "field 'author_profile' must be one of " + ", ".join(PROFILES))
     task = {"goal": require(state, "goal", str),
             "acceptance_criteria": string_list(state, "acceptance_criteria"),
             "planned_paths": string_list(state, "planned_paths")}
+    if facts["role"] == "scout":
+        # Scout только собирает факты со ссылками: всегда light, Jev не нужен.
+        if facts["writes_code"] or not facts["read_only"]:
+            raise Fail(2, "bad_input", "scout is read-only; use role worker or dev-lead")
+        return {"profile": "light", "table_profile": "light", "effort": "low",
+                "rules": ["scout_facts_only"],
+                "judgments": None, "model": None, "usage": None}
     jev_state = {"task": task}
     check_size(jev_state)
     config = offline_config() if args.response_file else load_config(args.project)
@@ -393,14 +454,24 @@ def calibrate(args):
     if set(probs) != set(levels):
         raise Fail(4, "bad_response", "size probabilities must cover levels " + ", ".join(levels))
     p_large = sum(prob(probs, k) for k in ("2", "3"))
-    judgments = {"size": {"score": size.get("score"), "p_large": round(p_large, 4)}}
+    judgments = {"size": {"score": size.get("score"), "p_large": round(p_large, 4),
+                          "p_t3": round(prob(probs, "3"), 4)}}
     for name in CALIBRATE_QUESTIONS:
         if name == "size":
             continue
         p = prob(answers[name], "noul")
         judgments[name] = {"p": p, "verdict": verdict(p)}
-    profile, rules = decide_profile(facts, judgments)
-    return {"profile": profile, "rules": rules, "judgments": judgments,
+    table_profile, rules = decide_profile(facts, judgments)
+    profile = table_profile
+    # escalation_only: старшая модель не назначается сразу — только эскалацией после неудачи.
+    # Verifier результата уже эскалированного автора остаётся не слабее автора.
+    if (policy == "escalation_only" and profile == "top"
+            and not (facts["role"] == "verifier" and facts["author_profile"] == "top")):
+        profile = "coding"
+        rules.append("top_by_escalation_only")
+    effort = decide_effort(profile, facts, judgments, rules)
+    return {"profile": profile, "table_profile": table_profile, "effort": effort,
+            "rules": rules, "judgments": judgments,
             "model": result.get("model"), "usage": result.get("usage")}
 
 
@@ -410,6 +481,21 @@ def repair_cause(args):
     if isinstance(failed, bool) or not isinstance(failed, int) or failed < 0:
         raise Fail(2, "bad_input", "field 'failed_repairs' must be a non-negative integer")
     current = require(state, "current_profile", str, PROFILES)
+    policy = top_policy(state)
+    high_risk = state.get("high_risk", False)
+    if not isinstance(high_risk, bool):
+        raise Fail(2, "bad_input", "field 'high_risk' must be true or false")
+    effort_now, n_values = state.get("current_effort"), state.get("effort_value_count")
+    if effort_now is not None and effort_now not in EFFORTS:
+        raise Fail(2, "bad_input", "field 'current_effort' must be one of " + ", ".join(EFFORTS))
+    if n_values is not None and (isinstance(n_values, bool) or not isinstance(n_values, int)
+                                 or n_values < 1):
+        raise Fail(2, "bad_input", "field 'effort_value_count' must be a positive integer")
+    next_effort = None
+    if effort_now is not None and n_values is not None and current != "light":
+        next_effort = next((level for level in EFFORTS[EFFORTS.index(effort_now) + 1:]
+                            if effort_value_index(level, n_values)
+                            > effort_value_index(effort_now, n_values)), None)
     jev_state = {"failure_report": require(state, "failure_report", str)}
     if state.get("check_output"):
         jev_state["check_output"] = str(state["check_output"])
@@ -422,15 +508,24 @@ def repair_cause(args):
         raise Fail(4, "bad_response", "cause answer has no valid probabilities")
     cause = max(probs, key=lambda k: prob(probs, k))
     p = prob(probs, cause)
+    target_effort = None
+    reasoning = cause == "reasoning_error" and p >= CAUSE_SURE
     if cause in BLOCKER_CAUSES and p >= CAUSE_SURE:
         action, target, rule = "blocker", None, "environment_or_access_is_not_model_problem"
-    elif (cause == "reasoning_error" and p >= CAUSE_SURE and failed >= 2
-          and current != "top"):
+    elif reasoning and failed == 1 and next_effort:
+        # Сначала дешевле: то же назначение на той же модели с большим усилием.
+        action, target, rule = "raise_effort", None, "reasoning_error_raise_effort_first"
+        target_effort = next_effort
+    elif (reasoning and failed >= 2 and current == "coding" and policy == "escalation_only"
+          and not high_risk):
+        action, target, rule = "parent_decides", None, "top_reserved_for_high_risk"
+    elif reasoning and failed >= 2 and current != "top":
         action, target, rule = "escalate", PROFILES[PROFILES.index(current) + 1], \
             "reasoning_error_after_two_repairs"
     else:
         action, target, rule = "parent_decides", None, "not_settled_by_table"
-    return {"action": action, "target_profile": target, "rule": rule,
+    return {"action": action, "target_profile": target, "target_effort": target_effort,
+            "rule": rule,
             "judgments": {"cause": cause, "p": p, "probabilities": probs},
             "model": result.get("model"), "usage": result.get("usage")}
 
