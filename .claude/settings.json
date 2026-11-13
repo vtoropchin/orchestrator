@@ -9,6 +9,15 @@
             "type": "command"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "command": "\"/Users/vladimir/.local/bin/memo\" hook -event session-start -config ${CLAUDE_PROJECT_DIR:-.}/agentmemory.toml",
+            "type": "command"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -17,6 +26,15 @@
         "hooks": [
           {
             "command": "memo hook -event prompt-submit -config ${CLAUDE_PROJECT_DIR:-.}/agentmemory.toml",
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "command": "\"/Users/vladimir/.local/bin/memo\" hook -event prompt-submit -config ${CLAUDE_PROJECT_DIR:-.}/agentmemory.toml",
             "type": "command"
           }
         ]
