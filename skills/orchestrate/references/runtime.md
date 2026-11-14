@@ -25,6 +25,14 @@ SPAWN — механизм самого клиента-хоста, видимы�
 не заменяют child: они обходят видимость, права и сверку. Fork всей беседы parent не даёт
 независимости verifier и переносит контекст parent, поэтому для v3 нужен fresh-вариант.
 
+**Наследование истории задавайте явно.** Если у запуска child есть параметр, который решает,
+сколько истории parent получает child, передавайте значение «без истории» в каждом запуске,
+включая scout, repair и verifier. Умолчание клиента не считается выбором: у части клиентов оно
+наследует беседу. Цена наследования растёт с длиной истории parent, а verifier с ней теряет
+независимость. Параметр и значение сохраните в `runtime.mapping.spawn_context`. Нет такого
+параметра и запуск всегда fresh — `spawn_context: fresh_only`; запуск всегда наследует
+историю — SPAWN не подтверждён.
+
 ## Выбор транспорта
 
 | `transport` | Нужны | Когда |
@@ -45,7 +53,7 @@ runtime:
   client: <имя клиента, как его сообщает среда, либо unknown>
   transport: session # delegated
   capabilities: {spawn: true, channel: true, reconcile: true, wake: true, result: false, child_memo: true, worktree: client} # worktree: client | parent | none
-  mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>, worktree: <параметр изоляции клиента | git worktree add | null>}
+  mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>, worktree: <параметр изоляции клиента | git worktree add | null>, spawn_context: <параметр и значение без наследования истории | fresh_only>}
   limits: [] # например: нет вложенной делегации, нет вопросов человеку у child, предел параллельных субагентов
   model_catalog: {client: <клиент>, source: <откуда>, models: [], selection: <chosen|single_candidate|inherit>, effort_values: [] , effort_selection: <chosen|inherit>} # см. model-selection.md, «Каталог моделей клиента»
   jev: {mode: off, provider: null, host: null, consent_ref: null} # off | shadow | apply; см. jev.md
@@ -57,6 +65,14 @@ WORKTREE выбирает Git policy ([параллельная доставка
 работает. Если клиент создаёт worktree от своей точки (например, от HEAD parent), child
 переключается на ветку от `base_oid`, как сказано в контракте. Worktree, который клиент
 удаляет сам при отсутствии изменений, не мешает: результат хранится в ветке задачи.
+
+**Право коммита — проверяемая предпосылка.** Коммит из worktree пишет в его фактические
+`git-dir` и `git-common-dir`, обычно за пределами каталога worktree; sandbox клиента может
+их защищать. До того как writer'у обещан самостоятельный коммит, подтвердите, что child
+может писать туда (`rev-parse --absolute-git-dir` и `--git-common-dir` в правах sandbox),
+либо что есть рабочий путь одобрения локальных Git-команд. Grant прав sandbox не меняет.
+Нет ни того ни другого — скажите пользователю, какое право нужно, или используйте
+запасную линейную policy; не запускайте writer, которому коммит заведомо недоступен.
 
 Transport фиксируется для каждого назначения. Resume в другом клиенте может выбрать новый
 transport для новых назначений; незавершённые назначения сверяются по своему сохранённому mapping.
@@ -126,6 +142,7 @@ transport для новых назначений; незавершённые н�
 | Claude Code Desktop | `session` | [Отдельный адаптер](runtime-claude-code-desktop.md) |
 | Claude Code CLI/IDE/web без инструментов сессий | `delegated` | Субагент со свежим контекстом и возвратом итога; фоновые субагенты с уведомлением = WAKE; worktree-изоляция субагента = WORKTREE `client` (создаётся от текущего HEAD — child переключается на `base_oid`) |
 | DeepSeek Harness (dsh) | `delegated` | [Адаптер](runtime-deepseek-harness.md): subagent в режиме fresh context, не fork беседы; MCP memo подключён в профиле/patch-слое и виден child; модели child — только из списка моделей субагентов сессии |
+| Codex | `session` | [Адаптер](runtime-codex.md): `fork_turns: "none"` в каждом запуске (умолчание `all` наследует беседу); новое назначение — новый child; права sandbox на Git-dir worktree |
 | Hermes Agent | `delegated` | Делегирование задачи субагенту с возвратом итога; доступ child к MCP memo и предел параллельных субагентов |
 | Другой клиент | по таблице возможностей | Нет ни `session`, ни `delegated` — `blocked: no_child_runtime` |
 

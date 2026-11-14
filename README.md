@@ -11,6 +11,7 @@
 |---|---|---|
 | [orchestrate](skills/orchestrate/SKILL.md) | Тонкий parent, нацеленный на скорость: карта зависимостей задач из memo или декомпозиция большой задачи, параллельные child-сессии/субагенты в своих Git worktree, слияние в интеграционную ветку, независимая проверка итога и восстановление v3 | Клиент агента, запускающий child со свежим контекстом (сессии или субагенты); настроенный MCP memo с подтверждённым project scope; необязательно — Jev (python3 и ключ в `.env`) |
 | [session-worker](skills/session-worker/SKILL.md) | Scout/planner/dev-lead/worker/integrator/verifier: полные details у потребителей, короткий результат parent | Полный brief v3 и канал к parent (адресуемая связь или итог вызова субагента); без memo нужен независимый verifier с memo и проверяемыми источниками evidence |
+| [orchestrate-retro](skills/orchestrate-retro/SKILL.md) | Самоанализ сессии orchestrate по просьбе пользователя или при явных проблемах: находки с классом (скил, решение parent, клиент, задача), интерактивные вопросы и по согласию — промпт для разработчика скила в чате; сам ничего не меняет | Нет; memo, журнал расхода клиента и транскрипты child используются, если доступны |
 | [i-have-adhd](skills/i-have-adhd/SKILL.md) | Стиль сообщений для читателя с СДВГ: первым — следующее действие, нумерованные шаги, без преамбулы. `dev` и `orchestrate` включают его по умолчанию только для сообщений пользователю; выключается фразой «stop adhd mode». Копия [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT), отличия — в [upstream.md](skills/i-have-adhd/references/upstream.md) | Нет; без него оркестраторы пишут в обычном стиле |
 
 Набор «Чистая архитектура» — дисциплина разработки по книге Роберта Мартина *Clean
@@ -154,6 +155,7 @@ skills/                         распространяемые скилы: п�
     SKILL.md                    метаданные и основной сценарий
     references/                 контракты, runtime клиентов, bootstrap, Jev и сценарии проверки
     scripts/jev.py              суждения Jev для выбора модели (Python 3 stdlib)
+  orchestrate-retro/            самоанализ сессии orchestrate и промпт для разработчика скила
   session-worker/               самостоятельный исполнитель
     SKILL.md                    роль, ready/grant, выполнение, ограничения
     references/                 полный контракт назначения и отчёта
