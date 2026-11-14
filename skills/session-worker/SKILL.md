@@ -96,6 +96,11 @@ processes_finished/ownership_released. Source/diff/stdout/full brief остаю�
 поток фрагментов не обходит лимит. Риск не скрывайте; если receipt не помещается,
 передайте parent необходимость уменьшить назначение.
 
+Каждое сообщение при `session` будит parent. Шлите только `ready`, `question` (решение parent,
+риск, блокер — сразу) и итоговый report с release. Штатный прогресс (намерение, шаг
+выполнен, «готов к commit») и запрошенные одобрения клиента (операция, механизм, решение)
+пишите в detail, не сообщением.
+
 После release не пишите без нового grant. Repair назначает parent: новые assignment,
 монотонный attempt, version/details и ready/grant; старые evidence не переписываются.
 Два неудачных repair стратегии требуют диагноза/вариантов parent, не сброса счётчика
@@ -124,6 +129,10 @@ worktree чистый, процессы остановлены, в summary `bran
 сверить tip с `branch_tip_oid`, сохранить intent, `git merge --no-ff --no-commit <oid>`,
 решить только очевидный текстовый конфликт с записью решения, прогнать быстрые проверки,
 зелёные — `git commit --no-edit`, иначе `git merge --abort` и вернуть ветку parent с фактами.
+Intent и итог каждого шага — в detail, intent перед merge и commit подтверждайте get сами;
+parent об этих шагах не уведомляйте. Parent — `ready`, `question` при drift, смысловом
+конфликте или проверках, требующих его решения, и итоговый report. Нет memo — integrator
+не выполняйте: `blocked: evidence_unavailable`.
 Своих правок сверх решения конфликтов, push и изменения целевой ветки нет. Подробно —
 раздел `worktree-integration/v1` контракта.
 

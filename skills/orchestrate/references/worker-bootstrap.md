@@ -45,6 +45,9 @@ blocked protocol_mismatch до выполнения, без молчаливог
    каждый ≤2000 символов; без source/diff/stdout и потока фрагментов. Нет memo — evidence
    самостоятельно собирает назначенный независимый verifier с memo; иначе blocked
    evidence_unavailable, не полный отчёт parent и не файловый канал координации.
+   Parent шлите только ready, question (решение, риск, блокер — сразу) и итоговый
+   report/release: каждое сообщение его будит. Штатный прогресс, intent и запрошенные
+   одобрения клиента — в detail. Integrator без memo не работает: evidence_unavailable.
 5. Verifier работает только по отдельному read-grant после writer submission/release:
    проверяет actual inventory, pin и критерии, повторяет сверку в конце, пишет полный audit
    и отдельный compact receipt. В линейной policy content pass открывает лишь Git-owner фазу,
