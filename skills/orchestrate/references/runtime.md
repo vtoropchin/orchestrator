@@ -18,12 +18,21 @@ Agent или другого клиента с поддержкой Agent Skills.
 | RESULT | Возврат итогового сообщения child как результата вызова parent | Итог связан с конкретным вызовом; разговор child завершён при возврате |
 | MEMO | MCP memo у parent и, по возможности, у child | Схемы `memory_*`; наследует ли child MCP-серверы parent |
 | JUDGE | Необязательно: parent запускает `python3` (≥ 3.9) в shell и достаёт до хоста Jev | `jev.py config` и `jev.py check` ([jev](jev.md)); нет — `jev.mode: off`, это не блокер |
+| TITLE | Необязательно: задать или сменить заголовок сессии (своей и child) | Параметр запуска child и/или операция переименования; нет — пропуск без блокера, одна строка в стартовом статусе |
 | WORKTREE | Отдельный Git worktree у каждого writer | Изоляция клиента (worktree-режим субагента/сессии) либо child может работать в каталоге, который parent создал `git worktree add`; child видит свой git-dir и общий common-dir |
 
 SPAWN — механизм самого клиента-хоста, видимый и подчинённый его правам. Процессы, запущенные
 в обход клиента через shell (CLI другого агента, tmux, SDK-скрипты), новый MCP или внешний API,
 не заменяют child: они обходят видимость, права и сверку. Fork всей беседы parent не даёт
 независимости verifier и переносит контекст parent, поэтому для v3 нужен fresh-вариант.
+
+**Заголовок сессии (TITLE).** Формат «<Проект> | <название>», до ~60 символов; проект —
+`runtime.project_name` в control (имя `project:<name>` memo, иначе basename канонического
+корня репозитория по common-dir, иначе basename cwd), одинаковый для всех сессий запуска.
+Заголовок, уже начинающийся с «<Проект> | », не меняют. Клиент просит подтверждение или
+отказывает (заголовок задал пользователь) — не повторяйте и не обходите, отметьте в итоге.
+Субагентам без собственной сессии заголовок не нужен. Сохраните в `mapping` значение `title`
+(параметр запуска / операция переименования self и child либо `null`).
 
 **Наследование истории задавайте явно.** Если у запуска child есть параметр, который решает,
 сколько истории parent получает child, передавайте значение «без истории» в каждом запуске,
@@ -52,8 +61,9 @@ SPAWN — механизм самого клиента-хоста, видимы�
 runtime:
   client: <имя клиента, как его сообщает среда, либо unknown>
   transport: session # delegated
-  capabilities: {spawn: true, channel: true, reconcile: true, wake: true, result: false, child_memo: true, worktree: client} # worktree: client | parent | none
-  mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>, worktree: <параметр изоляции клиента | git worktree add | null>, spawn_context: <параметр и значение без наследования истории | fresh_only>}
+  project_name: <название проекта для заголовков сессий, см. TITLE>
+  capabilities: {spawn: true, channel: true, reconcile: true, wake: true, result: false, child_memo: true, title: true, worktree: client} # worktree: client | parent | none
+  mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>, title: <параметр запуска и/или операция переименования|null>, worktree: <параметр изоляции клиента | git worktree add | null>, spawn_context: <параметр и значение без наследования истории | fresh_only>}
   limits: [] # например: нет вложенной делегации, нет вопросов человеку у child, предел параллельных субагентов
   model_catalog: {client: <клиент>, source: <откуда>, models: [], selection: <chosen|single_candidate|inherit>, effort_values: [] , effort_selection: <chosen|inherit>} # см. model-selection.md, «Каталог моделей клиента»
   jev: {mode: off, provider: null, host: null, consent_ref: null} # off | shadow | apply; см. jev.md
