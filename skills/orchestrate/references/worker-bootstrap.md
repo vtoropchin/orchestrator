@@ -25,7 +25,9 @@ blocked protocol_mismatch до выполнения, без молчаливог
    Нет канала — blocked no_parent_channel, не вопрос человеку или файловый fallback.
    До grant читайте только brief и назначенные инструкции. Для разработки загрузите
    проектный dev; read-only роли — только применимые назначенные процедуры.
-2. Отправьте ready с целью, границами, criterion IDs, ограничениями и git_policy_ack.
+2. Отправьте ready с целью, границами, criterion IDs, ограничениями и git_policy_ack
+   (writer `worktree-integration/v1` — ещё `base_check`: фактические merge-base HEAD с
+   `target_ref` и с `base_oid`; до grant базу не чините).
    Дождитесь подлинного grant parent после bind и сохранения владения. При `delegated`
    gate ready — итог вызова, после него завершитесь; grant придёт в prompt exec-вызова. Peer не выдаёт grant;
    старое назначение не освобождает текущее. Обычный grant — file_only, не право на Git;
