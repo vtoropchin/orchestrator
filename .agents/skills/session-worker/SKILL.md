@@ -117,13 +117,16 @@ stop/release/сверки эффектов и снова проходит нез
 ### Writer в своём worktree (`worktree-integration/v1`)
 
 Policy по умолчанию для Git-результата. До ready read-only сверьте, что ваш worktree
-отдельный: toplevel = `worktree.path`, свой Git dir, общий common-dir. После grant — HEAD на
-`worktree.branch` в `base_oid` и чистый status (клиент создал worktree от другой точки и он
-чистый — `git switch -c <branch> <base_oid>`). Пишите только внутри своего worktree и сами
+отдельный: toplevel = `worktree.path`, свой Git dir, общий common-dir, и передайте в ready
+`base_check` — полные OID `git rev-parse HEAD`, `git merge-base HEAD <target_ref>`,
+`git merge-base HEAD <base_oid>` и чистоту status. До grant базу не чините: при несовпадении
+parent не выдаёт grant и присылает `git-grant` `operation: base_fix` с одной командой либо
+перезапускает назначение. После grant — HEAD в `base_oid` (ветка клиента с другим именем —
+`git switch -c <branch>` от HEAD) и чистый status. Пишите только внутри своего worktree и сами
 коммитите в свою ветку: `git --literal-pathspecs add -- <paths>`, без отдельного git-grant.
 Нет push, `--force`, rebase/merge в чужие ветки и смены ветки. Возвращённую интегратором
 ветку чините, влив `integration_tip` в свою ветку. Сдача `branch_ready`: всё закоммичено,
-worktree чистый, процессы остановлены, в summary `branch_tip_oid`, `base_oid`, manifest
+worktree чистый, процессы остановлены, в summary `branch_tip_oid`, `base_oid`, `base_check` на tip, manifest
 `base_oid..tip` и проверки. Это не acceptance.
 
 ### Integrator
@@ -186,6 +189,9 @@ content/final_git delivery, не ставите not_applicable из-за сво�
 в своём detached worktree: все критерии и проверки всех задач запуска, first-parent цепь из
 merge-коммитов принятых веток до `start_oid`, diff `start_oid..tip` против manifest задач и
 записанных решений конфликтов, неизменность целевой ветки. Отдельной content-фазы нет.
+Если brief велит самому перевести свой чистый worktree на tip (клиент не дал исходную точку),
+до ready выполните только `git checkout --detach <tip>` и сообщите `git rev-parse HEAD`;
+worktree не чистый или HEAD ≠ tip — blocked. Других Git-мутаций у verifier нет.
 
 ## Примеры
 

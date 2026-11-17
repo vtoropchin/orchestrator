@@ -112,10 +112,13 @@ blocker); каждая выбранная задача есть в узлах; �
 
 Как получить worktree, в порядке предпочтения:
 
-1. **Изоляция клиента** (worktree-режим субагента или сессии). Child первым делом
-   проверяет, что его worktree отдельный (свой git-dir, общий common-dir), и делает
-   `git switch -c orch/<run>/<task> <base_oid>` — если клиент создал worktree от другой
-   точки, ветка всё равно начинается от `base_oid`.
+1. **Изоляция клиента** (worktree-режим субагента или сессии). Исходную точку передайте
+   явно параметром клиента, если он есть (адаптер): умолчание может быть remote default
+   branch, отстающая от локальной цели. Child в ready сообщает, что его worktree отдельный
+   (свой git-dir, общий common-dir), и `base_check` — фактические merge-base HEAD с
+   `target_ref` и с `base_oid`. Parent выдаёт grant, только если они равны `start_oid` и
+   `base_oid`; иначе база исправляется до работы (`base_fix` или новый запуск,
+   [контракт](contracts.md#writer-в-своём-worktree)).
 2. **Parent создаёт сам** через Git CLI, если клиент изоляции не даёт, но child может
    работать в указанном каталоге:
    `git worktree add -b orch/<run>/<task> <path> <base_oid>`. `<path>` — вне рабочего
@@ -132,8 +135,8 @@ blocker); каждая выбранная задача есть в узлах; �
 ## 5. Непрерывная интеграция
 
 Writer завершает работу так: dev-цикл с ревью пройден, все изменения закоммичены в ветку
-задачи, worktree чистый, процессы остановлены, summary с `branch_tip_oid` и release.
-Это `branch_ready`, не acceptance.
+задачи, worktree чистый, процессы остановлены, summary с `branch_tip_oid`, `base_check` и
+release. Это `branch_ready`, не acceptance. Parent сверяет `base_check` до пакета интегратору.
 
 Интегратор — отдельный child (`role: integrator`, не автор этих веток), профиль не ниже
 `coding`, высокий риск — `top`. Он владеет worktree интеграционной ветки и получает

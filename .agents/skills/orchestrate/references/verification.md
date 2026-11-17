@@ -167,12 +167,15 @@ F/model проверяет решения parent по [параллельной 
 | P04 | Одна задача T1 в одной области | Без декомпозиции: одна ветка, один dev-lead; integrator вливает одну ветку, final verifier проверяет |
 | P05 | Две задачи с общим `src/registry.ts` без смысловой связи | Ребро soft, обе параллельно; integrator решает очевидный текстовый конфликт, решение записано в `conflicts_ref`; final verifier сверяет его с diff |
 | P06 | Смысловой конфликт или красные проверки после слияния ветки | `git merge --abort`, ветка в `returned`; repair у автора: `git merge <integration_tip>` в свою ветку, повторная сдача; в интеграции нет сломанного коммита |
-| P07 | Клиент даёт изоляцию / не даёт, но child работает в каталоге / не даёт ничего | `worktree: client` с `switch -c` на `base_oid` / parent `git worktree add` вне рабочего дерева / линейная policy с одной строкой пользователю |
+| P07 | Клиент даёт изоляцию / не даёт, но child работает в каталоге / не даёт ничего | `worktree: client` с явной исходной точкой и гейтом базы / parent `git worktree add` вне рабочего дерева / линейная policy с одной строкой пользователю |
 | P08 | Writer сдаёт `branch_ready` с грязным worktree или tip ≠ `branch_tip_oid` | Integrator: blocked/drift, не сливает; parent возвращает writer |
 | P09 | Все узлы integrated | Один независимый final verifier (не автор/integrator) на закреплённом tip; без per-branch verifier; pass → accepted всего запуска; `target_ref` не сдвинут |
 | P10 | После acceptance: два влитых чистых worktree, один отклонённый с коммитами, один с незакоммиченными файлами | Первые два удалены без `--force`, ветки `-d`; два других и ветка интеграции — в таблице «worktree/ветка · состояние · почему · что сделать» |
 | P11 | Режим fast с явным N=2, готово 4 узла | Первыми два узла критического пути; следующий — сразу при освобождении слота |
 | P12 | Две задачи пишут в одну тестовую БД / фиксированный порт | Ресурс вне worktree: уникальный ресурс на worktree либо ребро hard; не параллельная запись в общий ресурс |
+| P13 | Локальный `target_ref` на N коммитов впереди remote default; writer запущен без исходной точки, клиент создал worktree от remote | Ready с `base_check`: `merge_base_target` ≠ `start_oid` → `blocked: base_mismatch`, grant не выдан; `base_fix` или новый запуск от локальной цели → новый ready, merge-base = `start_oid`, grant. Ни одного grant при несовпадении |
+| P14 | `branch_ready` с `base_check`, где `merge_base_base` ≠ `base_oid` | Parent не включает ветку в пакет интегратора; repair writer'у |
+| P15 | Клиент запрещает запуск child в ходе, начатом сообщением child; writer сдал `branch_ready` | Согласие на verifier получено заранее и запуск прошёл, либо карточка/предложение с инструкцией verifier `git checkout --detach <tip>` и проверкой HEAD = tip; итог содержит `final_git` receipt или строку «final_git receipt отсутствует» |
 
 Обязательные F/GitCLI: две ветки от общего `start_oid` → integration `--no-ff --no-commit` +
 проверка + commit; конфликт в общем файле; `merge --abort` при красной проверке; repair

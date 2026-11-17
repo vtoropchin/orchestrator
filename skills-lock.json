@@ -44,7 +44,7 @@
     "orchestrate": {
       "source": "./skills",
       "sourceType": "local",
-      "computedHash": "883d3c010e16740162baaddf0fbd26026e756de690f098e86705b0d6f49d9a12"
+      "computedHash": "d377a993cc50f3f99cddc54567696ccd997b4f0b79b2ab997feb1d553b243838"
     },
     "orchestrate-retro": {
       "source": "./skills",
@@ -54,7 +54,7 @@
     "session-worker": {
       "source": "./skills",
       "sourceType": "local",
-      "computedHash": "48141605afd5727cce07e5f09ced0ccaa84667c72f20ea9737425934be1e835d"
+      "computedHash": "16e92477c721c9ab3fbd7ca701107076b8b575b244559bc597016e023e2b226c"
     },
     "skill-creator": {
       "source": "anthropics/skills",

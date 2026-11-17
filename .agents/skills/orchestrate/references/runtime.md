@@ -64,7 +64,7 @@ runtime:
   project_name: <название проекта для заголовков сессий, см. TITLE>
   capabilities: {spawn: true, channel: true, reconcile: true, wake: true, result: false, child_memo: true, title: true, worktree: client} # worktree: client | parent | none
   mapping: {spawn: <фактический tool>, channel: <tool|null>, reconcile: <tool|null>, wake: <механизм|null>, result: <tool|null>, title: <параметр запуска и/или операция переименования|null>, worktree: <параметр изоляции клиента | git worktree add | null>, spawn_context: <параметр и значение без наследования истории | fresh_only>}
-  limits: [] # например: нет вложенной делегации, нет вопросов человеку у child, предел параллельных субагентов
+  limits: [] # например: нет вложенной делегации, нет вопросов человеку у child, предел параллельных субагентов, spawn_only_user_turn (запуск только в ходе пользователя)
   model_catalog: {client: <клиент>, source: <откуда>, models: [], selection: <chosen|single_candidate|inherit>, effort_values: [] , effort_selection: <chosen|inherit>} # см. model-selection.md, «Каталог моделей клиента»
   jev: {mode: off, provider: null, host: null, consent_ref: null} # off | shadow | apply; см. jev.md
 ```
@@ -72,8 +72,9 @@ runtime:
 WORKTREE выбирает Git policy ([параллельная доставка](parallel-delivery.md#4-worktree-и-ветки)):
 `client` или `parent` — `worktree-integration/v1`; `none` — запасная линейная policy с
 последовательной записью. Изоляция клиента предпочтительнее: клиент сам знает, где child
-работает. Если клиент создаёт worktree от своей точки (например, от HEAD parent), child
-переключается на ветку от `base_oid`, как сказано в контракте. Worktree, который клиент
+работает. Если клиент создаёт worktree от своей точки (например, от HEAD parent или от
+remote default branch), передайте исходную точку параметром клиента; иначе расхождение
+поймает гейт базы (`base_check` в ready) и база исправится до grant, как сказано в контракте. Worktree, который клиент
 удаляет сам при отсутствии изменений, не мешает: результат хранится в ветке задачи.
 
 **Право коммита — проверяемая предпосылка.** Коммит из worktree пишет в его фактические
@@ -187,7 +188,7 @@ transport для новых назначений; незавершённые н�
 | Клиент | Обычно | Что проверить |
 |---|---|---|
 | Claude Code Desktop | `session` | [Отдельный адаптер](runtime-claude-code-desktop.md); журнал расхода и одобрения — [Claude Code](runtime-claude-code.md) |
-| Claude Code CLI/IDE/web без инструментов сессий | `delegated` | Субагент со свежим контекстом и возвратом итога; фоновые субагенты с уведомлением = WAKE; worktree-изоляция субагента = WORKTREE `client` (создаётся от текущего HEAD — child переключается на `base_oid`); журнал расхода и одобрения — [Claude Code](runtime-claude-code.md) |
+| Claude Code CLI/IDE/web без инструментов сессий | `delegated` | Субагент со свежим контекстом и возвратом итога; фоновые субагенты с уведомлением = WAKE; worktree-изоляция субагента = WORKTREE `client` (создаётся от текущего HEAD — гейт базы по `base_check`, при расхождении `base_fix` до grant); журнал расхода и одобрения — [Claude Code](runtime-claude-code.md) |
 | DeepSeek Harness (dsh) | `delegated` | [Адаптер](runtime-deepseek-harness.md): subagent в режиме fresh context, не fork беседы; MCP memo подключён в профиле/patch-слое и виден child; модели child — только из списка моделей субагентов сессии |
 | Codex | `session` | [Адаптер](runtime-codex.md): `fork_turns: "none"` в каждом запуске (умолчание `all` наследует беседу); новое назначение — новый child; права sandbox на Git-dir worktree |
 | Hermes Agent | `delegated` | Делегирование задачи субагенту с возвратом итога; доступ child к MCP memo и предел параллельных субагентов |

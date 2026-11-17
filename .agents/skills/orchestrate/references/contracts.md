@@ -257,9 +257,9 @@ stdout/diff/source/full brief/evidence и не обходите предел п�
 
 | `kind` | Содержание / полномочия |
 |---|---|
-| ready | Понятая цель, границы, criterion IDs, доступность refs/ограничения; ожидание grant |
+| ready | Понятая цель, границы, criterion IDs, доступность refs/ограничения; writer `worktree-integration/v1` — ещё `base_check`; ожидание grant |
 | grant | Только parent после bind/владения; file_only, не расширяет brief |
-| git-grant | Отдельный единственному Git-owner после independent content pass; поля ниже |
+| git-grant | Отдельный единственному Git-owner после independent content pass; поля ниже. Исключение — `operation: base_fix` writer'у `worktree-integration/v1` до grant (гейт базы) |
 | read-grant | Только назначенному verifier после writer submission/release, до acceptance; exact pin, read_paths, details, проверки и стабильность |
 | question | Риск/блокер+ref, варианты/рекомендация, независимая часть |
 | clarification | Техническое уточнение разрешённого peer, не grant/решение человека |
@@ -564,6 +564,7 @@ worktree:
   branch: refs/heads/orch/<run>/<task> # integrator: integration_ref; final verifier: null (detached)
   base_oid: <tip интеграции при dispatch; final verifier — закреплённый tip>
 branch_tip_oid: null # writer указывает в summary
+base_check: null # writer: {head_oid, merge_base_target, merge_base_base, status_clean} в ready и branch_ready
 merge_batch: [] # integrator: [{task, branch_ref, branch_tip_oid}] в топологическом порядке
 merged: [] # integrator: [{task, pre_oid, merge_oid, conflicts_ref}]
 returned: [] # integrator: [{task, reason, evidence_ref}]
@@ -586,9 +587,29 @@ final_receipt_ref: null
 - **Ready.** Read-only сверьте: `rev-parse --show-toplevel` = `worktree.path`,
   `--absolute-git-dir` = `worktree.git_dir` и не равен Git dir основного checkout,
   `--git-common-dir` = `common_dir`. Несовпадение или общий с кем-то worktree — blocked.
-- **Первый шаг после grant.** HEAD на `worktree.branch` в `base_oid`, `status` чистый.
-  Если клиент создал worktree от другой точки и он чистый — `git switch -c <branch> <base_oid>`.
-  Иначе blocked с фактами.
+  В ready передайте фактическую базу worktree — `base_check`, полные OID, read-only:
+
+  ```yaml
+  base_check:
+    head_oid: <git rev-parse HEAD>
+    merge_base_target: <git merge-base HEAD <target_ref>>
+    merge_base_base: <git merge-base HEAD <base_oid>>
+    status_clean: <true|false>
+  ```
+
+  До grant базу не чините: ready сдаётся как есть, решение о базе принимает parent.
+- **Гейт базы (parent, до grant).** Grant выдаётся, только если `merge_base_base` = `base_oid`
+  и `merge_base_target` = `start_oid`. Иначе ready отклонён: `blocked: base_mismatch` с
+  ожидаемыми и фактическими OID, работа не начинается. Базу исправляют до работы: новый
+  запуск от верной точки (параметр исходной ветки клиента — в адаптере), пересоздание
+  worktree parent'ом от `base_oid` либо отдельный `git-grant` writer'у с `operation: base_fix`
+  и ровно одной командой — `git switch -c <branch> <base_oid>` для чистого worktree без своих
+  коммитов, `git merge <base_oid>` для ветки со своими коммитами. Затем новый ready с
+  `base_check`; grant — только при совпадении. Ни одно назначение не получает grant при
+  несовпадении, в том числе в расчёте, что writer «переключится сам».
+- **Первый шаг после grant.** HEAD в `base_oid` (подтверждено гейтом), `status` чистый.
+  HEAD на ветке клиента с другим именем — `git switch -c <branch>` от текущего HEAD: это
+  имя ветки, не смена базы. Расхождение с ready — blocked с фактами.
 - **Работа.** Пишите только внутри `worktree.path`; `write_paths` считаются от его корня.
   Другие worktree, основной checkout, целевая и интеграционная ветки — вне границ.
   Внешние общие ресурсы (БД, порты, кэши, сервисы) — только назначенные brief.
@@ -599,8 +620,10 @@ final_receipt_ref: null
   решение конфликта по смыслу, повтор проверок, новая сдача. Это единственный merge writer.
 - **Сдача (`branch_ready`).** Всё закоммичено, `status --porcelain` пуст (свои временные
   файлы удалены; чужих в своём worktree нет), процессы остановлены. Summary содержит
-  `branch_tip_oid`, `base_oid`, список коммитов, manifest `base_oid..branch_tip_oid`,
-  выполненные проверки и release. После сдачи ветку не двигайте без нового назначения.
+  `branch_tip_oid`, `base_oid`, `base_check` на `branch_tip_oid` (те же поля, что в ready),
+  список коммитов, manifest `base_oid..branch_tip_oid`, выполненные проверки и release.
+  После сдачи ветку не двигайте без нового назначения. Parent до пакета интегратора сверяет
+  `base_check` по правилу гейта базы; несовпадение — repair writer'у, не слияние.
 
 ### Integrator
 
@@ -632,7 +655,9 @@ drift, смысловом конфликте или красных провер�
 
 Read-only verifier с `verification_phase: final_git` на закреплённом `integration_tip`,
 обычно в отдельном detached worktree от parent (`git worktree add --detach <path> <tip>`),
-чтобы тесты не мешали другим. Не автор, не integrator, не соавтор. Проверьте:
+чтобы тесты не мешали другим. Не автор, не integrator, не соавтор. Если клиент не дал
+исходной точки и brief велит перейти на tip самому — до ready только `git checkout --detach
+<tip>` в своём чистом worktree и `git rev-parse HEAD` = tip в ready; иначе blocked. Проверьте:
 
 - `integration_ref` = закреплённому tip; `target_ref` этой работой не сдвинут;
 - first-parent цепь от tip до `start_oid` состоит только из merge-коммитов `merged`;
@@ -656,7 +681,7 @@ role: <назначенная роль>
 artifact_version: <версия либо null>
 manifest_fingerprint: <digest либо null>
 detail_refs: [] # ID/версия result/evidence, доступные непосредственному потребителю
-git_delivery: <applicability/policy/state; линейная: target/start, unit/pre_git_oid/prefix, expected_tip/final_oid/tree/refs; worktree-integration: worktree path/branch, base_oid, branch_tip_oid либо merged/returned/integration_tip; либо explicit not_applicable>
+git_delivery: <applicability/policy/state; линейная: target/start, unit/pre_git_oid/prefix, expected_tip/final_oid/tree/refs; worktree-integration: worktree path/branch, base_oid, base_check, branch_tip_oid либо merged/returned/integration_tip; либо explicit not_applicable>
 completed: <краткий результат, не evidence>
 risks: [] # существенный риск + ref
 unverified: [] # criterion IDs/ограничения
