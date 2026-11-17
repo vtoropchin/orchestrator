@@ -6,6 +6,11 @@
 # передаётся аргументами команд. Затем по согласию — проверка подключения
 # через GET /v1/models: инференса нет, баланс не расходуется. Для Kev в конце —
 # инструкция по установке и запуску сервера (сам сервер не ставится).
+# Для Kev установщик сначала ищет уже работающий сервер только на этом компьютере
+# (GET /v1/models, таймаут 1,5 с, без прокси и редиректов): ollama — по OLLAMA_HOST, иначе
+# 127.0.0.1:11434; kev.serve — 127.0.0.1:8009. Найденные адрес и модель kev* становятся
+# значениями по умолчанию. Для тестов JEV_KEV_CANDIDATES (пары «ollama|serve URL» через пробел)
+# заменяет этот список.
 #
 # Использование: sh scripts/configure-jev.sh <корень проекта> [путь к jev.py]
 set -eu
@@ -25,6 +30,9 @@ written=0
 solver=jev
 kev_key=0
 base=
+found_kev=0
+found_base=
+found_model=
 
 cleanup() {
   if [ "$echo_off" -eq 1 ]; then stty echo 2>/dev/null || :; fi
@@ -60,6 +68,68 @@ end_with_newline() {
   fi
 }
 
+# Ищет работающий Kev на localhost → строка «адрес<TAB>модель» или пусто. Нужен python3.
+# ollama принимается, только если среди моделей есть kev*; kev.serve — любой ответивший сервер.
+discover_kev() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 -c "$(cat <<'PY'
+import json, os, re, sys, urllib.request
+
+LOCAL = {"": "127.0.0.1", "0.0.0.0": "127.0.0.1", "127.0.0.1": "127.0.0.1",
+         "localhost": "localhost", "::1": "localhost", "[::1]": "localhost"}
+
+
+def ollama_url(raw):
+    raw = re.sub(r"^[A-Za-z]+://", "", (raw or "").strip()).split("/")[0]
+    host, port = raw, "11434"
+    if raw.startswith("["):
+        host, _, rest = raw.partition("]")
+        host += "]"
+        port = rest.lstrip(":") or port
+    elif raw.count(":") == 1:
+        host, port = raw.split(":")
+        port = port or "11434"
+    if host not in LOCAL or not port.isdigit():
+        return None
+    return "http://%s:%s" % (LOCAL[host], port)
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args):
+        return None
+
+
+opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
+env = os.environ.get("JEV_KEV_CANDIDATES")
+if env is not None:
+    pairs = [x.split("|", 1) for x in env.split() if "|" in x]
+else:
+    ollama = ollama_url(os.environ.get("OLLAMA_HOST"))
+    pairs = ([["ollama", ollama]] if ollama else []) + [["serve", "http://127.0.0.1:8009"]]
+for kind, url in pairs:
+    if not re.match(r"^http://(127\.0\.0\.1|localhost)(:[0-9]+)?$", url):
+        continue
+    try:
+        with opener.open(url + "/v1/models", timeout=1.5) as r:
+            data = json.loads(r.read(1 << 20).decode("utf-8"))
+        items = data.get("data", data.get("models")) if isinstance(data, dict) else data
+        ids = [m.get("id") or m.get("name") if isinstance(m, dict) else m for m in items]
+    except Exception:
+        continue
+    ids = [i for i in ids if isinstance(i, str) and re.match(r"^[A-Za-z0-9._:/-]+$", i)]
+    kev = [i for i in ids if i.lower().startswith("kev")]
+    if kev:
+        model = kev[0]
+    elif kind == "serve":
+        model = ids[0] if ids else "kev-latest"
+    else:
+        continue
+    print("%s\t%s" % (url, model))
+    break
+PY
+)" 2>/dev/null || :
+}
+
 # Инструкция для Kev: сервер ставит и запускает пользователь, make install его не устанавливает.
 kev_instructions() {
   port=$(printf '%s\n' "$base" | LC_ALL=C sed -n 's|^https*://[^/:]*:\([0-9][0-9]*\).*|\1|p')
@@ -67,6 +137,10 @@ kev_instructions() {
   env_prefix=
   if [ "$kev_key" -eq 1 ]; then env_prefix='KEV_API_KEY=<ключ из JEV_AI_API_KEY> '; fi
   say '' 'make install: Kev — открытая модель-решатель (Apache-2.0): https://github.com/jaredpalmer/kev'
+  if [ "$found_kev" -eq 1 ] && [ "$base" = "$found_base" ]; then
+    say "  Kev уже работает по адресу $base (модель $found_model); ставить и запускать его не нужно."
+    return 0
+  fi
   if ! printf '%s\n' "$base" | LC_ALL=C grep -Eq '^http://(127\.0\.0\.1|localhost)(:|/|$)'; then
     say "  Адрес $base — не этот компьютер: запустите Kev на том хосте и проверьте его оттуда."
     return 0
@@ -82,6 +156,8 @@ kev_instructions() {
   if [ -n "$jev_py" ]; then
     say '  Проверка после запуска:' "    python3 $jev_py --project $work_dir check"
   fi
+  say '  Уже работаете с Kev в ollama? Запустите ollama (ollama serve) — установщик найдёт его сам' \
+    '  (адрес по умолчанию 127.0.0.1:11434 или OLLAMA_HOST) и предложит модель kev из ответа сервера.'
   say '  Kev слабее облачного Jev: начните с runtime.jev.mode: shadow (jev.md).'
 }
 
@@ -161,6 +237,17 @@ done
 if [ "$solver" = kev ]; then
   default_base=http://127.0.0.1:8009
   default_model=kev-latest
+  hit=$(discover_kev)
+  if [ -n "$hit" ]; then
+    found_kev=1
+    found_base=${hit%%	*}
+    found_model=${hit#*	}
+    default_base=$found_base
+    default_model=$found_model
+    say "make install: найден работающий Kev: $found_base (модель $found_model)."
+  else
+    say 'make install: работающий Kev на этом компьютере не найден (ollama, kev.serve :8009); значения по умолчанию — для kev.serve.'
+  fi
 fi
 
 while :; do
@@ -173,6 +260,7 @@ while :; do
   say 'Нужен адрес https://… (http:// — только для localhost).' >&2
 done
 while :; do
+  if [ "$found_kev" -eq 1 ] && [ "$base" != "$found_base" ]; then default_model=kev-latest; fi
   ask 'Модель Jev' "$default_model"
   model=$reply
   printf '%s\n' "$model" | LC_ALL=C grep -Eq '^[A-Za-z0-9._:/-]+$' && break
@@ -257,7 +345,8 @@ if [ -n "$jev_py" ] && [ -f "$jev_py" ]; then
     exit 0
   fi
   if [ "$solver" = kev ]; then
-    ask 'Kev уже запущен? Проверить подключение сейчас (GET /v1/models)? (y/N)' 'N'
+    if [ "$found_kev" -eq 1 ] && [ "$base" = "$found_base" ]; then check_default=Y; else check_default=N; fi
+    ask 'Kev уже запущен? Проверить подключение сейчас (GET /v1/models)? (y/N)' "$check_default"
   else
     ask 'Проверить подключение сейчас (GET /v1/models, баланс не расходуется)? (Y/n)' 'Y'
   fi

@@ -32,8 +32,9 @@ class ConfigureJev(unittest.TestCase):
     def run_script(self, answers, jev_py=None, env=None):
         args = ["sh", str(SCRIPT), str(self.dir)] + ([str(jev_py)] if jev_py else [])
         data = answers if isinstance(answers, bytes) else ("\n".join(answers) + "\n").encode()
+        # Пустой JEV_KEV_CANDIDATES: обнаружение Kev не ходит к настоящим ollama/kev.serve машины.
         proc = subprocess.run(args, input=data, capture_output=True, timeout=60,
-                              env=env or clean_env())
+                              env=env or clean_env(JEV_KEV_CANDIDATES=""))
         return proc.returncode, (proc.stdout + proc.stderr).decode("utf-8", "replace")
 
     def test_decline_writes_nothing(self):
@@ -234,6 +235,81 @@ class ConfigureJev(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("не этот компьютер", out)
         self.assertNotIn("--port 9443", out)
+
+    # ---------- обнаружение работающего Kev ----------
+
+    def fake_host(self, ids, reply_status=200):
+        fake = FakeApi([(reply_status, {"object": "list", "data": [{"id": i} for i in ids]})] * 4)
+        self.addCleanup(fake.close)
+        return "http://127.0.0.1:%d" % fake.server.server_address[1], fake
+
+    def test_discovers_ollama_model_and_offers_it(self):
+        url, fake = self.fake_host(["qwen3.5:9b", "kev:latest"])
+        env = clean_env(JEV_KEV_CANDIDATES="ollama|" + url)
+        code, out = self.run_script(["y", "kev", "", "", "", "n"], jev_py=JEV_PY, env=env)
+        self.assertEqual(code, 0, out)
+        text = self.env_file.read_text()
+        self.assertIn("JEV_AI_BASE_URL=%s\n" % url, text)
+        self.assertIn("JEV_AI_MODEL=kev:latest\n", text)
+        self.assertIn("найден работающий Kev", out)
+        self.assertNotIn("git clone", out)
+        self.assertEqual(fake.requests[0]["path"], "/v1/models")
+
+    def test_discovery_uses_ollama_host_and_accepts_custom_address(self):
+        url, _ = self.fake_host(["kev:latest"])
+        port = url.rsplit(":", 1)[1]
+        env = clean_env(OLLAMA_HOST="0.0.0.0:" + port)
+        env.pop("JEV_KEV_CANDIDATES", None)
+        code, out = self.run_script(["y", "kev", "", "", "", "n"], jev_py=JEV_PY, env=env)
+        self.assertEqual(code, 0, out)
+        self.assertIn("JEV_AI_BASE_URL=%s\n" % url, self.env_file.read_text())
+        self.env_file.unlink()
+        code, out = self.run_script(["y", "kev", "http://localhost:9010", "", "", "n"],
+                                    jev_py=JEV_PY, env=env)
+        text = self.env_file.read_text()
+        self.assertIn("JEV_AI_BASE_URL=http://localhost:9010\n", text)
+        self.assertIn("JEV_AI_MODEL=kev-latest\n", text)
+
+    def test_remote_ollama_host_is_not_probed(self):
+        env = clean_env(OLLAMA_HOST="http://203.0.113.5:11434")
+        env.pop("JEV_KEV_CANDIDATES", None)
+        code, out = self.run_script(["y", "kev", "", "", "", "n"], jev_py=JEV_PY, env=env)
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("203.0.113.5", out)
+
+    def test_ollama_without_kev_model_is_ignored(self):
+        url, _ = self.fake_host(["qwen3.5:9b"])
+        env = clean_env(JEV_KEV_CANDIDATES="ollama|" + url)
+        code, out = self.run_script(["y", "kev", "", "", "", "n"], jev_py=JEV_PY, env=env)
+        self.assertEqual(code, 0, out)
+        self.assertIn("JEV_AI_BASE_URL=http://127.0.0.1:8009\n", self.env_file.read_text())
+        self.assertIn("не найден", out)
+
+    def test_kev_serve_answer_is_accepted_with_its_model(self):
+        url, _ = self.fake_host(["kev-4b"])
+        env = clean_env(JEV_KEV_CANDIDATES="serve|" + url)
+        code, out = self.run_script(["y", "kev", "", "", "", "n"], jev_py=JEV_PY, env=env)
+        self.assertEqual(code, 0, out)
+        self.assertIn("JEV_AI_MODEL=kev-4b\n", self.env_file.read_text())
+
+    def test_nothing_found_keeps_old_defaults_and_mentions_ollama(self):
+        env = clean_env(JEV_KEV_CANDIDATES="ollama|http://127.0.0.1:1 serve|http://127.0.0.1:1")
+        code, out = self.run_script(["y", "kev", "", "", "", "n"], jev_py=JEV_PY, env=env)
+        self.assertEqual(code, 0, out)
+        text = self.env_file.read_text()
+        self.assertIn("JEV_AI_BASE_URL=http://127.0.0.1:8009\n", text)
+        self.assertIn("JEV_AI_MODEL=kev-latest\n", text)
+        self.assertIn("kev.serve --run jaredpalmer/kev-4b --port 8009", out)
+        self.assertIn("ollama", out)
+
+    def test_jev_solver_does_not_probe(self):
+        url, fake = self.fake_host(["kev:latest"])
+        env = clean_env(JEV_KEV_CANDIDATES="ollama|" + url)
+        code, out = self.run_script(["y", "jev", "", "", KEY, "n"], jev_py=JEV_PY, env=env)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(fake.requests, [])
+        self.assertIn("JEV_AI_BASE_URL=https://jev-ai.pro/api\n", self.env_file.read_text())
+
 
 if __name__ == "__main__":
     unittest.main()
