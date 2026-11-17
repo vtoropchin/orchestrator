@@ -44,7 +44,7 @@
     "orchestrate": {
       "source": "./skills",
       "sourceType": "local",
-      "computedHash": "d377a993cc50f3f99cddc54567696ccd997b4f0b79b2ab997feb1d553b243838"
+      "computedHash": "935bd319c60edd566822b3eadb93a2517d4f942735e8325dca336e5a47b7a567"
     },
     "orchestrate-retro": {
       "source": "./skills",
